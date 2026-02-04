@@ -1,0 +1,20 @@
+[
+  {"category":"Moda Masculina","niche":"moda_masculina","search_url":"https://www.shopee.com.br/m/choice?category=masculino","max_price":299,"min_discount":25},
+  {"category":"Moda Feminina","niche":"moda_feminina","search_url":"https://www.shopee.com.br/m/choice?category=feminino","max_price":299,"min_discount":25},
+  {"category":"Moda Infantil","niche":"moda_infantil","search_url":"https://www.shopee.com.br/m/choice?category=infantil","max_price":199,"min_discount":20},
+  
+  {"category":"Eletrônicos - Smartphones","niche":"eletronicos","search_url":"https://www.amazon.com.br/s?k=smartphone","max_price":2500,"min_discount":15},
+  {"category":"Eletrônicos - Smartwatchs","niche":"eletronicos","search_url":"https://www.amazon.com.br/s?k=smartwatch","max_price":1500,"min_discount":15},
+  {"category":"Eletrônicos - TVs","niche":"eletronicos","search_url":"https://www.amazon.com.br/s?k=tv","max_price":4500,"min_discount":15},
+  {"category":"Eletrônicos - Tablets","niche":"eletronicos","search_url":"https://www.amazon.com.br/s?k=tablet","max_price":3000,"min_discount":15},
+  {"category":"Eletrônicos - Fones","niche":"eletronicos","search_url":"https://www.amazon.com.br/s?k=fones","max_price":800,"min_discount":15},
+  
+  {"category":"Esportes - Tênis","niche":"esportes","search_url":"https://www.netshoes.com.br/tenis","max_price":599,"min_discount":20},
+  {"category":"Esportes - Kimono","niche":"esportes","search_url":"https://www.netshoes.com.br/kimono","max_price":499,"min_discount":20},
+  {"category":"Esportes - Luvas","niche":"esportes","search_url":"https://www.netshoes.com.br/luvas","max_price":199,"min_discount":20},
+  {"category":"Esportes - Chuteiras","niche":"esportes","search_url":"https://www.netshoes.com.br/chuteiras","max_price":799,"min_discount":20},
+
+  {"category":"Choice","niche":"choice","search_url":"https://www.shopee.com.br/m/choice","max_price":399,"min_discount":15},
+
+  {"category":"Casa - Achadinhos","niche":"casa","search_url":"https://www.mercadolivre.com.br/achadinhos-de-casa","max_price":399,"min_discount":20}
+]

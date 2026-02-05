@@ -1,12 +1,13 @@
-import requests, json, os, random
+import requests, json, os, random, sys
 from bs4 import BeautifulSoup
 import telegram
+from datetime import datetime
 
 # =============================
 # ⚡ CONFIGURAÇÃO TELEGRAM
 # =============================
-TOKEN = os.environ["TELEGRAM_TOKEN"]  # Adicione nos Secrets do GitHub
-CHAT_ID = os.environ["CHAT_ID"]        # Adicione nos Secrets do GitHub
+TOKEN = os.environ.get("TELEGRAM_TOKEN")
+CHAT_ID = os.environ.get("CHAT_ID")
 bot = telegram.Bot(token=TOKEN)
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
@@ -37,70 +38,86 @@ def apply_affiliate(url, niche):
 # ⚡ BUSCA AUTOMÁTICA DE CUPONS
 # =============================
 def fetch_coupons(niche, site_url):
-    """Busca cupons ativos na página do site e atualiza JSON automaticamente"""
     cupons = []
     try:
         r = requests.get(site_url, headers=HEADERS, timeout=20)
         soup = BeautifulSoup(r.text, "html.parser")
-        # Exemplo: cupons dentro de spans com class "coupon-code"
         for tag in soup.find_all("span", class_="coupon-code"):
             code = tag.text.strip()
             if code: cupons.append(code)
-    except:
-        pass
-    # Atualiza JSON do nicho
+    except Exception as e:
+        print(f"[Erro cupom] {niche} - {e}")
     if cupons:
-        with open(f"coupons_{niche}.json","w") as f:
-            json.dump(cupons,f)
+        with open(f"coupons_{niche}.json", "w") as f:
+            json.dump(cupons, f)
     return cupons
 
 def get_coupon(niche, site_url):
-    """Pega um cupom aleatório, atualizando antes"""
-    fetch_coupons(niche, site_url)
+    cupons = fetch_coupons(niche, site_url)
     try:
-        with open(f"coupons_{niche}.json","r") as f:
-            cupons = json.load(f)
-            return random.choice(cupons) if cupons else ""
+        with open(f"coupons_{niche}.json", "r") as f:
+            cupons_file = json.load(f)
+            all_coupons = cupons + cupons_file
+            return random.choice(all_coupons) if all_coupons else ""
     except:
-        return ""
+        return ""  # Retorna vazio se não houver
 
 # =============================
-# ⚡ FUNÇÃO PARA PEGAR PRODUTOS
+# ⚡ PEGAR PRODUTOS
 # =============================
 def get_products(url):
-    r = requests.get(url, headers=HEADERS, timeout=20)
-    soup = BeautifulSoup(r.text, "html.parser")
-    products = []
-    for a in soup.find_all("a", href=True):
-        price = a.select_one(".andes-money-amount__fraction, span.a-offscreen")
-        title = a.select_one("h2, span.a-text-normal")
-        if price and title:
-            try:
-                value = int(price.text.replace(".", "").replace(",", ""))
-            except:
-                continue
-            products.append({"name": title.text.strip()[:80], "price": value, "url": a["href"]})
-    return products[:15]
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=20)
+        soup = BeautifulSoup(r.text, "html.parser")
+        products = []
+        for a in soup.find_all("a", href=True):
+            price = a.select_one(".andes-money-amount__fraction, span.a-offscreen")
+            title = a.select_one("h2, span.a-text-normal")
+            if price and title:
+                try:
+                    value = int(price.text.replace(".", "").replace(",", ""))
+                except:
+                    continue
+                products.append({"name": title.text.strip()[:80], "price": value, "url": a["href"], "time": datetime.now().isoformat()})
+        return products[:15]
+    except Exception as e:
+        print(f"[Erro get_products] {url} - {e}")
+        return []
 
 # =============================
-# ⚡ LOOP PRINCIPAL
+# ⚡ EXECUÇÃO PRINCIPAL
 # =============================
 for cat in categories:
+    print(f"\n[Buscando produtos] Categoria: {cat['category']} | URL: {cat['search_url']}")
     products = get_products(cat["search_url"])
+    print(f"Produtos encontrados: {len(products)}")
+
     for p in products:
         key = p["name"]
         old_price = history.get(key, p["price"])
         discount = round((old_price - p["price"]) / old_price * 100, 1) if old_price else 0
-        score = discount*2 + (old_price - p["price"])
+        price_drop = old_price - p["price"]  # queda de preço recente
+        score = discount*2 + price_drop
 
-        if discount >= cat["min_discount"]:
+        # Apenas produtos que caíram de preço
+        if discount >= 5 and price_drop > 0:
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])
             cupom = get_coupon(cat["niche"], cat["search_url"])
             cupom_text = f"\n🎫 Use o cupom: {cupom}" if cupom else ""
-            bot.send_message(CHAT_ID, f"{text}\n{p['name']}\n💰 R$ {p['price']} (-{discount}%)\n{link}{cupom_text}")
-            ranking.append((score,p))
 
+            msg = f"{text}\n{p['name']}\n💰 R$ {p['price']} (-{discount}%)\n{link}{cupom_text}"
+            print(f"[Enviando] {msg}")
+            try:
+                bot.send_message(CHAT_ID, msg)
+            except Exception as e:
+                print(f"[Erro Telegram] {e}")
+
+            ranking.append((score, p))
+        else:
+            print(f"[Ignorado] {p['name']} - Desconto: {discount}% | Queda: {price_drop}")
+
+        # Atualiza histórico
         history[key] = p["price"]
 
 # =============================
@@ -108,12 +125,17 @@ for cat in categories:
 # =============================
 ranking.sort(reverse=True,key=lambda x:x[0])
 if ranking:
-    msg="🏆 TOP OFERTAS DO DIA\n\n"
-    for i,(_,p) in enumerate(ranking[:5],1):
-        msg+=f"{i}️⃣ {p['name']} – R$ {p['price']}\n"
-    bot.send_message(CHAT_ID,msg)
+    msg = "🏆 TOP OFERTAS DO DIA\n\n"
+    for i,(_,p) in enumerate(ranking[:5], 1):
+        msg += f"{i}️⃣ {p['name']} – R$ {p['price']}\n"
+    print(f"[Enviando Ranking]\n{msg}")
+    try:
+        bot.send_message(CHAT_ID, msg)
+    except Exception as e:
+        print(f"[Erro Telegram Ranking] {e}")
 
 # =============================
 # ⚡ SALVAR HISTÓRICO
 # =============================
-json.dump(history,open("history.json","w"))
+json.dump(history, open("history.json", "w"))
+print("\n[Histórico salvo]")

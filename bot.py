@@ -15,7 +15,7 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 # ⚡ LINKS DE AFILIADOS
 # =============================
 affiliates = {
-    "amazon": "SEUTAG-20",
+    "amazon": "salvablessjj-20",
     "shopee": "18308930971",
     "mercadolivre": "1561730990",
     "netshoes": "rWODdSNWJGM"
@@ -141,7 +141,6 @@ for cat in categories:
             if price_diff>0:
                 msg_price += f" (↓ R$ {price_diff:.2f})"
 
-            # Mensagem segura HTML
             msg = f"""<b>{cat['category']} EM OFERTA!</b>
 {text}
 {p['name']}

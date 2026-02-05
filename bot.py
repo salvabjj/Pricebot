@@ -175,7 +175,22 @@ for p in selecionados:
     history[p["name"]] = p["price"]
 
 print(f"\n[OK] Total enviado: {enviados}")
+# =============================
+# FALLBACK ABSOLUTO (NUNCA FICA EM SILÊNCIO)
+# =============================
+if enviados == 0:
+    msg = (
+        "🔥 CONFIRA AS OFERTAS DO DIA!\n\n"
+        "Selecionamos produtos com ótimo custo-benefício.\n"
+        "🛒 Veja agora:\n"
+        "https://www.amazon.com.br/?tag=salvablessjj-20"
+    )
 
+    try:
+        bot.send_message(chat_id=CHAT_ID, text=msg)
+        print("[Fallback absoluto enviado]")
+    except Exception as e:
+        print("[Erro Telegram fallback absoluto]", e)
 # =============================
 # SALVAR HISTÓRICO
 # =============================

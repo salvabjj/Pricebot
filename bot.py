@@ -1,18 +1,18 @@
 import requests, json, os, random
 from bs4 import BeautifulSoup
-import telegram
 from datetime import datetime
+from telegram import Bot
 
 # =============================
-# ⚡ CONFIGURAÇÃO TELEGRAM
+# CONFIGURAÇÃO TELEGRAM
 # =============================
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = int(os.environ.get("CHAT_ID", 0))
-bot = telegram.Bot(token=TOKEN)
+bot = Bot(token=TOKEN)
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 # =============================
-# ⚡ CARREGAR ARQUIVOS JSON
+# FUNÇÃO PARA CARREGAR ARQUIVOS JSON
 # =============================
 def load(file, default):
     try:
@@ -28,7 +28,7 @@ affiliates = load("affiliates.json", {})
 ranking = []
 
 # =============================
-# ⚡ LINK AFILIADO
+# FUNÇÃO LINK AFILIADO
 # =============================
 def apply_affiliate(url, niche):
     try:
@@ -41,7 +41,7 @@ def apply_affiliate(url, niche):
         return url
 
 # =============================
-# ⚡ PEGAR PRODUTOS
+# PEGAR PRODUTOS
 # =============================
 def get_products(url):
     try:
@@ -70,23 +70,23 @@ def get_products(url):
         return []
 
 # =============================
-# ⚡ EXECUÇÃO PRINCIPAL
+# EXECUÇÃO PRINCIPAL
 # =============================
 for cat in categories:
     try:
-        print(f"\n[Buscando produtos] Categoria: {cat['category']} | URL: {cat['search_url']}")
+        print(f"[Buscando produtos] {cat['category']} | URL: {cat['search_url']}")
         products = get_products(cat["search_url"])
         print(f"Produtos encontrados: {len(products)}")
     except Exception as e:
-        print(f"[Erro ao buscar categoria] {cat['category']} - {e}")
+        print(f"[Erro categoria] {cat['category']} - {e}")
         continue
 
     for p in products:
         try:
             key = p["name"]
             old_price = history.get(key, p["price"])
-            price_drop = old_price - p["price"]  # queda de preço recente
-            score = price_drop  # pontuação baseada na queda
+            price_drop = old_price - p["price"]
+            score = price_drop
 
             # Condicional: promoção, queda ou potencial de venda
             if p["promotion"] or price_drop > 0:
@@ -95,35 +95,34 @@ for cat in categories:
                 msg = f"{text}\n{p['name']}\n💰 R$ {p['price']}\n{link}"
                 print(f"[Enviando] {msg}")
                 try:
-                    bot.send_message(CHAT_ID, msg)
+                    bot.send_message(chat_id=CHAT_ID, text=msg)
                 except Exception as e:
                     print(f"[Erro Telegram] {e}")
                 ranking.append((score, p))
 
-            # Atualiza histórico
             history[key] = p["price"]
         except Exception as e:
             print(f"[Erro produto] {p.get('name', 'N/A')} - {e}")
 
 # =============================
-# ⚡ RANKING DIÁRIO
+# RANKING DIÁRIO
 # =============================
 try:
-    ranking.sort(reverse=True,key=lambda x:x[0])
+    ranking.sort(reverse=True, key=lambda x: x[0])
     if ranking:
         msg = "🏆 TOP OFERTAS DO DIA\n\n"
-        for i,(_,p) in enumerate(ranking[:5],1):
+        for i, (_, p) in enumerate(ranking[:5], 1):
             msg += f"{i}️⃣ {p['name']} – R$ {p['price']}\n"
         print(f"[Enviando Ranking]\n{msg}")
-        bot.send_message(CHAT_ID,msg)
+        bot.send_message(chat_id=CHAT_ID, text=msg)
 except Exception as e:
     print(f"[Erro Ranking] {e}")
 
 # =============================
-# ⚡ SALVAR HISTÓRICO
+# SALVAR HISTÓRICO
 # =============================
 try:
-    json.dump(history, open("history.json","w"))
+    json.dump(history, open("history.json", "w"))
     print("[Histórico salvo]")
 except Exception as e:
-    print(f"[Erro ao salvar histórico] {e}")
+    print(f"[Erro salvar histórico] {e}")

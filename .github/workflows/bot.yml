@@ -2,15 +2,15 @@ name: PriceBot Pro Max 24h
 
 on:
   schedule:
-    # Roda a cada 20 minutos (Padrão: minuto 0, 20 e 40 de cada hora)
+    # Correção: O robô roda a cada 20 minutos
     - cron: '*/20 * * * *'
-  workflow_dispatch: # Permite que você rode manualmente pelo botão "Run Workflow"
+  workflow_dispatch: # Permite rodar manualmente no botão "Run Workflow"
 
 jobs:
   executar-bot:
     runs-on: ubuntu-latest
     
-    # Permissões necessárias para o robô salvar o histórico no seu repositório
+    # Permissões para que o GitHub Actions possa salvar o histórico de volta no repo
     permissions:
       contents: write
 
@@ -32,14 +32,14 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
+        # IMPORTANTE: Aqui o nome deve ser igual ao seu arquivo principal
         run: python Bot.py
 
       - name: 5. Salvar Histórico (Commit e Push)
-        # Este passo evita que o robô poste o mesmo produto na próxima rodada
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
-          git add history.json
-          # O comando abaixo evita erro se não houver novos links para salvar
-          git commit -m "bot: atualizando histórico de envios [skip ci]" || echo "Sem novos links para salvar"
+          # Adiciona o arquivo de histórico (garanta que o nome coincida com o do código)
+          git add history.json || echo "Nenhuma alteração no histórico"
+          git commit -m "bot: atualizando histórico de envios [skip ci]" || echo "Sem novos links"
           git push

@@ -1,222 +1,119 @@
 import os
 import json
+import time
 import random
 import requests
 from datetime import datetime
-from bs4 import BeautifulSoup
-import telegram
 
-# =============================
-# CONFIG TELEGRAM
-# =============================
-TOKEN = os.environ.get("TELEGRAM_TOKEN")
-CHAT_ID = int(os.environ.get("CHAT_ID", 0))
-bot = telegram.Bot(token=TOKEN)
+# ==========================
+# CONFIGURAÇÕES
+# ==========================
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-}
+HISTORY_FILE = "history.json"
+POSTS_PER_RUN = 3  # mínimo garantido
+TIME_BETWEEN_POSTS = 3  # segundos
 
-POSTS_POR_EXECUCAO = 3
-
-# =============================
-# AFILIADOS
-# =============================
 AFFILIATES = {
-    "amazon": "salvablessjj-20",
+    "amazon": "https://www.amazon.com.br/?tag=salvablessjj-20",
+    "shopee": "https://shopee.com.br",
+    "mercadolivre": "https://www.mercadolivre.com.br",
     "netshoes": "https://www.netshoes.com.br/afiliado/rWODdSNWJGM",
-    "zattini": "https://www.zattini.com.br/",
-    "mercadolivre": "https://www.mercadolivre.com.br/",
-    "shopee": "https://shopee.com.br/"
+    "zattini": "https://www.zattini.com.br"
 }
 
-# =============================
-# JSON HELPERS
-# =============================
-def load_json(path, default):
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return default
+# ==========================
+# CATEGORIAS
+# ==========================
+CATEGORIES = [
+    {"nome": "Moda Masculina", "site": "amazon"},
+    {"nome": "Moda Feminina", "site": "zattini"},
+    {"nome": "Moda Infantil", "site": "netshoes"},
+    {"nome": "Eletrônicos", "site": "mercadolivre"},
+    {"nome": "Esportes", "site": "shopee"},
+    {"nome": "Casa", "site": "amazon"},
+    {"nome": "Suplementos", "site": "amazon"}
+]
 
-def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-categories = load_json("categories.json", [])
-history = load_json("history.json", {})
-fallback_cache = load_json("fallback_products.json", [])
-
-# =============================
-# AFILIADO LINK
-# =============================
-def apply_affiliate(url, site):
-    if site == "amazon":
-        if not url.startswith("http"):
-            url = "https://www.amazon.com.br" + url
-        if "tag=" not in url:
-            sep = "&" if "?" in url else "?"
-            return f"{url}{sep}tag={AFFILIATES['amazon']}"
-    return url
-
-# =============================
-# FALLBACK CACHE
-# =============================
-def save_fallback(products, limit=200):
-    global fallback_cache
-    for p in products:
-        if not any(fp["name"] == p["name"] for fp in fallback_cache):
-            fallback_cache.append(p)
-    fallback_cache = fallback_cache[-limit:]
-    save_json("fallback_products.json", fallback_cache)
-
-def get_fallback(qtd):
-    if not fallback_cache:
+# ==========================
+# HISTORY
+# ==========================
+def load_history():
+    if not os.path.exists(HISTORY_FILE):
         return []
-    return random.sample(fallback_cache, min(qtd, len(fallback_cache)))
+    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
 
-# =============================
-# SCRAPER AMAZON
-# =============================
-def scrape_amazon(url):
-    products = []
-    r = requests.get(url, headers=HEADERS, timeout=20)
-    soup = BeautifulSoup(r.text, "html.parser")
+def save_history(history):
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
 
-    cards = soup.select("div[data-component-type='s-search-result']")
-    for c in cards:
-        title = c.select_one("h2 a span")
-        price = c.select_one("span.a-offscreen")
-        link = c.select_one("h2 a")
+# ==========================
+# TELEGRAM
+# ==========================
+def send_telegram(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": CHAT_ID,
+        "text": text,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": False
+    }
+    r = requests.post(url, json=payload, timeout=15)
+    r.raise_for_status()
 
-        if not title or not link:
-            continue
+# ==========================
+# GERADOR DE POST
+# ==========================
+def build_post(category):
+    site = category.get("site", "amazon")
+    link = AFFILIATES.get(site, AFFILIATES["amazon"])
 
-        name = title.text.strip()
-        if len(name) < 15:
-            continue
+    return f"""
+🔥 *CONFIRA AS OFERTAS DO DIA!*
 
-        value = 0.0
-        if price:
-            try:
-                value = float(price.text.replace("R$", "").replace(".", "").replace(",", "."))
-            except:
-                pass
+👕 *{category['nome']}*
+Selecionamos produtos com ótimo custo-benefício.
 
-        products.append({
-            "name": name[:120],
-            "price": value,
-            "url": link["href"],
-            "site": "amazon"
-        })
+🛒 Confira agora:
+{link}
+"""
 
-    return products
+# ==========================
+# EXECUÇÃO PRINCIPAL
+# ==========================
+def main():
+    history = load_history()
+    sent = 0
 
-# =============================
-# SCRAPER GENÉRICO
-# =============================
-def scrape_generic(url, site):
-    products = []
-    r = requests.get(url, headers=HEADERS, timeout=20)
-    soup = BeautifulSoup(r.text, "html.parser")
+    random.shuffle(CATEGORIES)
 
-    for a in soup.find_all("a", href=True):
-        name = a.text.strip()
-        if len(name) < 20:
-            continue
+    for cat in CATEGORIES:
+        if sent >= POSTS_PER_RUN:
+            break
 
-        products.append({
-            "name": name[:120],
-            "price": 0.0,
-            "url": a["href"] if a["href"].startswith("http") else url,
-            "site": site
-        })
+        try:
+            message = build_post(cat)
+            send_telegram(message)
 
-    return products[:20]
+            history.append({
+                "categoria": cat["nome"],
+                "site": cat.get("site", "amazon"),
+                "data": datetime.utcnow().isoformat()
+            })
 
-# =============================
-# COLETA
-# =============================
-todos = []
-prioritarios = []
+            sent += 1
+            time.sleep(TIME_BETWEEN_POSTS)
 
-for cat in categories:
-    site = cat["site"]
-    print(f"[Categoria] {cat['category']} ({site})")
+        except Exception as e:
+            print(f"Erro ao postar {cat['nome']}: {e}")
 
-    try:
-        if site == "amazon":
-            produtos = scrape_amazon(cat["search_url"])
-        else:
-            produtos = scrape_generic(cat["search_url"], site)
-    except Exception as e:
-        print("[Erro scraper]", e)
-        produtos = []
+    save_history(history)
 
-    print("Encontrados:", len(produtos))
-    todos.extend(produtos)
-    save_fallback(produtos)
+    if sent == 0:
+        send_telegram("⚠️ Nenhuma oferta enviada nesta execução.")
 
-    for p in produtos:
-        nome = p["name"]
-        preco = p["price"]
-        antigo = history.get(nome)
-
-        if nome not in history or (antigo and preco != antigo):
-            prioritarios.append(p)
-
-# =============================
-# SELEÇÃO FINAL
-# =============================
-def unique(lista):
-    seen = set()
-    out = []
-    for p in lista:
-        if p["name"] not in seen:
-            seen.add(p["name"])
-            out.append(p)
-    return out
-
-todos = unique(todos)
-prioritarios = unique(prioritarios)
-
-selecionados = prioritarios[:POSTS_POR_EXECUCAO]
-
-if len(selecionados) < POSTS_POR_EXECUCAO:
-    faltam = POSTS_POR_EXECUCAO - len(selecionados)
-    pool = [p for p in todos if p not in selecionados]
-    selecionados.extend(random.sample(pool, min(faltam, len(pool))))
-
-# =============================
-# FALLBACK REAL
-# =============================
-if len(selecionados) < POSTS_POR_EXECUCAO:
-    faltam = POSTS_POR_EXECUCAO - len(selecionados)
-    selecionados.extend(get_fallback(faltam))
-
-# =============================
-# ENVIO
-# =============================
-enviados = 0
-
-for p in selecionados:
-    link = apply_affiliate(p["url"], p["site"])
-    preco = f"R$ {p['price']:.2f}" if p["price"] > 0 else "Consulte o preço"
-
-    msg = (
-        f"🔥 OFERTA EM DESTAQUE!\n\n"
-        f"{p['name']}\n"
-        f"💰 {preco}\n"
-        f"🔗 Comprar agora:\n{link}"
-    )
-
-    try:
-        bot.send_message(chat_id=CHAT_ID, text=msg)
-        enviados += 1
-        history[p["name"]] = p["price"]
-    except Exception as e:
-        print("[Erro Telegram]", e)
-
-print("[Total enviados]", enviados)
-
-save_json("history.json", history)
+# ==========================
+if __name__ == "__main__":
+    main()

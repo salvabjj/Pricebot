@@ -12,37 +12,39 @@ jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Baixar código
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Configurar Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
-      # 3️⃣ Instalar dependências
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 python-telegram-bot==13.15
 
-      # 4️⃣ Configurar variáveis de ambiente
       - name: Set environment variables
         run: |
           echo "TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }}" >> $GITHUB_ENV
           echo "CHAT_ID=${{ secrets.CHAT_ID }}" >> $GITHUB_ENV
 
-      # 5️⃣ Rodar o bot com execução aleatória
-      - name: Run bot with random chance
+      - name: Run bot with fixed execution rate
         shell: bash
         run: |
-          RANDOM_CHANCE=$(python3 -c "import random; print(random.random())")
-          echo "Random value: $RANDOM_CHANCE"
-          if (( $(echo "$RANDOM_CHANCE < 0.33" | bc -l) )); then
+          # Delay aleatório 0-4 minutos
+          RANDOM_DELAY=$(( RANDOM % 240 ))
+          echo "Aguardando $RANDOM_DELAY segundos antes de executar..."
+          sleep $RANDOM_DELAY
+
+          # Taxa de execução configurável: 0.235 → 23,5%
+          EXEC_RATE=0.235
+          EXEC_PROB=$(python3 -c "import random; print(random.random())")
+          echo "Valor aleatório para execução: $EXEC_PROB"
+
+          if (( $(echo "$EXEC_PROB < $EXEC_RATE" | bc -l) )); then
             echo "[Random] Executando o bot..."
             python3 bot.py
           else
             echo "[Random] Ignorado nesta execução"
-          fi

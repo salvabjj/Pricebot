@@ -125,14 +125,37 @@ for cat in categories:
 
     sent_any = False
 
+    # Primeiro envia sempre Choice
+    for p in products:
+        if cat["niche"] == "choice":
+            text = random.choice(copies.get(cat["niche"], ["✨ Produto em destaque:"]))
+            link = apply_affiliate(p["url"], cat["niche"])
+            cupom = get_coupon(cat["niche"], cat["search_url"])
+            cupom_text = f"🎫 Use o cupom: {cupom}" if cupom else ""
+            msg_price = f"💰 R$ {p['price']:.2f}"
+
+            msg = f"""<b>{cat['category']} EM DESTAQUE!</b>
+{text}
+{p['name']}
+{msg_price}
+<a href="{p['image']}">📷 Imagem</a>
+<a href="{link}">🔗 Link de Compra</a>
+{cupom_text}"""
+
+            try:
+                bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode="HTML", disable_web_page_preview=False)
+                sent_any = True
+                print(f"[Choice Enviado] {p['name']}")
+            except Exception as e:
+                print(f"[Erro Telegram Choice] {e}")
+
+    # Depois envia ofertas ou produtos com queda de preço
     for p in products:
         key = p["name"]
         old_price = history.get(key, p["price"])
         price_diff = old_price - p["price"]
-        score = price_diff
 
-        # Posta se Choice, promoção ou potencial de venda
-        if cat["niche"]=="choice" or p["offer"] or price_diff>0:
+        if cat["niche"] != "choice" and (p["offer"] or price_diff>0):
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])
             cupom = get_coupon(cat["niche"], cat["search_url"])
@@ -150,37 +173,27 @@ for cat in categories:
 {cupom_text}"""
 
             try:
-                bot.send_message(
-                    chat_id=CHAT_ID,
-                    text=msg,
-                    parse_mode="HTML",
-                    disable_web_page_preview=False
-                )
+                bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode="HTML", disable_web_page_preview=False)
                 sent_any = True
+                print(f"[Oferta Enviada] {p['name']}")
             except Exception as e:
                 print(f"[Erro Telegram] {e}")
 
-            ranking.append((score, p))
-
         history[key] = p["price"]
 
-    # Fallback: se nenhum produto enviado, posta 1 produto
-    fallback_counter += 0 if sent_any or cat["niche"]=="choice" else 1
+    # Fallback se nada enviado (ignora Choice)
+    fallback_counter += 0 if sent_any else 1
     if fallback_counter >= 1:
         for p in products:
-            if cat["niche"]=="choice":
+            if cat["niche"] == "choice":
                 continue
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])
             msg_price = f"💰 R$ {p['price']:.2f}"
             msg = f"<b>{cat['category']} EM OFERTA!</b>\n{text}\n{p['name']}\n{msg_price}\n<a href='{link}'>🔗 Link de Compra</a>"
             try:
-                bot.send_message(
-                    chat_id=CHAT_ID,
-                    text=msg,
-                    parse_mode="HTML",
-                    disable_web_page_preview=False
-                )
+                bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode="HTML", disable_web_page_preview=False)
+                print(f"[Fallback Enviado] {p['name']}")
             except Exception as e:
                 print(f"[Erro Telegram fallback] {e}")
             fallback_counter = 0

@@ -1,4 +1,4 @@
-name: PriceBot 24h – Taxa de execução fixa
+name: PriceBot 24h – Taxa fixa corrigida
 
 on:
   push:
@@ -6,18 +6,17 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    # Dispara a cada 5 minutos
     - cron: '*/5 * * * *'
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Baixar código
+      # 1️⃣ Baixar o código
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Configurar Python
+      # 2️⃣ Configurar Python 3.12
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -39,18 +38,27 @@ jobs:
       - name: Run bot with fixed execution rate
         shell: bash
         run: |
-          # Delay aleatório para dispersar execuções (0 a 4 minutos)
+          # -----------------------------
+          # Delay aleatório 0-4 minutos
+          # -----------------------------
           RANDOM_DELAY=$(( RANDOM % 240 ))
           echo "Aguardando $RANDOM_DELAY segundos antes de executar..."
           sleep $RANDOM_DELAY
 
-          # Taxa de execução fixa (ex: 23,5%)
+          # -----------------------------
+          # Taxa de execução fixa
+          # -----------------------------
           EXEC_RATE=0.235
           EXEC_PROB=$(python3 -c "import random; print(random.random())")
           echo "Valor aleatório gerado: $EXEC_PROB"
 
-          if (( $(echo "$EXEC_PROB < $EXEC_RATE" | bc -l) )); then
-            echo "[Execução] Rodando o bot..."
-            python3 bot.py
+          # -----------------------------
+          # Comparação e execução
+          # -----------------------------
+          EXECUTE=$(echo "$EXEC_PROB < $EXEC_RATE" | bc -l)
+          if [ "$EXECUTE" -eq 1 ]; then
+              echo "[Execução] Rodando o bot..."
+              python3 bot.py
           else
-            echo "[Ignorado] Esta execução não rodará o bot."
+              echo "[Ignorado] Esta execução não rodará o bot."
+          fi

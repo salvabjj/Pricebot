@@ -2,7 +2,7 @@ import os, json, random, time, requests
 from bs4 import BeautifulSoup
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
-# CONFIGURAÇÃO DE ARQUIVOS
+# CONFIGURAÇÃO DE ARQUIVOS (MAIÚSCULOS)
 HISTORY_FILE = "History.json"
 AFFILIATES_FILE = "Affiliates.json"
 CATEGORIES_FILE = "Categories.json"
@@ -20,16 +20,33 @@ def extrair_detalhes(url):
     try:
         res = requests.get(url, headers=headers, timeout=15)
         soup = BeautifulSoup(res.text, "html.parser")
+        
+        # Busca Imagem
         img = soup.find("meta", property="og:image")
         img_url = img["content"] if img else None
+        
+        # Busca Nome
         title = soup.find("meta", property="og:title")
         nome = title["content"].split("|")[0].strip() if title else "Produto em Oferta"
         
-        preco = "Ver no site"
-        for tag in soup.find_all(["span", "strong"]):
-            if "R$" in tag.get_text():
-                preco = tag.get_text().strip()
+        # LÓGICA DE PREÇO COM FALLBACK TEXTUAL
+        preco = None
+        for tag in soup.find_all(["span", "strong", "p"]):
+            texto = tag.get_text().strip()
+            if "R$" in texto and len(texto) < 15:
+                preco = f"💰 *Apenas: {texto}*"
                 break
+        
+        # Se não achou o preço exato, usa frase chamativa
+        if not preco:
+            frases_curiosidade = [
+                "🔥 *PREÇO IMBATÍVEL!* (Confira no botão abaixo)",
+                "😱 *O MENOR PREÇO DO ANO!* Clique para ver",
+                "📉 *QUEDA DE PREÇO DETECTADA!* Veja agora",
+                "💎 *OFERTA EXCLUSIVA!* Valor liberado no site"
+            ]
+            preco = random.choice(frases_curiosidade)
+            
         return nome, img_url, preco
     except: return None, None, None
 
@@ -55,7 +72,6 @@ def main():
     enviados_total = 0
     meta = 3
     
-    # Mistura os nichos para cada execução ser única
     todos_nichos = config.get("nichos", [])
     random.shuffle(todos_nichos)
 
@@ -66,10 +82,9 @@ def main():
             if enviados_total >= meta: break
             
             termo = random.choice(nicho["termos"])
-            # Se for nicho Choice, foca na Shopee, senão usa os outros
             if nicho["id"] == "choice" and "shopee" not in site["nome"]: continue
             
-            print(f"Buscando {termo} em {site['nome']}...")
+            print(f"Buscando {termo}...")
             try:
                 r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent":"Mozilla/5.0"}, timeout=10)
                 soup = BeautifulSoup(r.text, "html.parser")
@@ -81,14 +96,14 @@ def main():
                     link = f"https://www.{site['nome'].lower()}.com.br" + (link if link.startswith("/") else "/" + link)
 
                 if link not in history:
-                    nome, img, preco = extrair_detalhes(link)
-                    if not nome or "Amazon.com.br" in nome: continue # Evita páginas de erro da Amazon
+                    nome, img, texto_venda = extrair_detalhes(link)
+                    if not nome or "Amazon.com.br" in nome: continue 
 
                     link_af = converter_afiliado(link, site["nome"], afiliados)
-                    frase = random.choice(copies.get(nicho["id"], ["🔥 OFERTA!"]))
+                    frase_topo = random.choice(copies.get(nicho["id"], ["🔥 OFERTA!"]))
                     
-                    msg = f"{frase}\n\n📦 *{nome[:80]}...*\n💰 *Preço: {preco}*\n\n🛒 Loja: {site['nome'].upper()}"
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🛒 COMPRAR AGORA", url=link_af)]])
+                    msg = f"{frase_topo}\n\n📦 *{nome[:80]}...*\n\n{texto_venda}\n\n🛒 Loja: {site['nome'].upper()}"
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 VER PREÇO E COMPRAR", url=link_af)]])
 
                     try:
                         if img: bot.send_photo(chat_id=chat_id, photo=img, caption=msg, reply_markup=kb, parse_mode="Markdown")
@@ -97,7 +112,7 @@ def main():
                         history.append(link)
                         enviados_total += 1
                         time.sleep(15)
-                        break # Sai do loop de links para ir para o próximo nicho
+                        break 
                     except: continue
 
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:

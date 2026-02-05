@@ -1,38 +1,16 @@
-[
-  {"category":"Moda Masculina","niche":"moda_masculina","search_url":"https://www.shopee.com.br/m/choice?category=masculino","max_price":0,"min_discount":10},
-  {"category":"Moda Masculina","niche":"moda_masculina","search_url":"https://www.amazon.com.br/s?k=moda+masculina","max_price":0,"min_discount":10},
-  {"category":"Moda Masculina","niche":"moda_masculina","search_url":"https://www.mercadolivre.com.br/moda-masculina","max_price":0,"min_discount":10},
-  {"category":"Moda Masculina","niche":"moda_masculina","search_url":"https://www.netshoes.com.br/moda-masculina","max_price":0,"min_discount":10},
-
-  {"category":"Moda Feminina","niche":"moda_feminina","search_url":"https://www.shopee.com.br/m/choice?category=feminino","max_price":0,"min_discount":10},
-  {"category":"Moda Feminina","niche":"moda_feminina","search_url":"https://www.amazon.com.br/s?k=moda+feminina","max_price":0,"min_discount":10},
-  {"category":"Moda Feminina","niche":"moda_feminina","search_url":"https://www.mercadolivre.com.br/moda-feminina","max_price":0,"min_discount":10},
-  {"category":"Moda Feminina","niche":"moda_feminina","search_url":"https://www.netshoes.com.br/moda-feminina","max_price":0,"min_discount":10},
-
-  {"category":"Moda Infantil","niche":"moda_infantil","search_url":"https://www.shopee.com.br/m/choice?category=infantil","max_price":0,"min_discount":10},
-  {"category":"Moda Infantil","niche":"moda_infantil","search_url":"https://www.amazon.com.br/s?k=moda+infantil","max_price":0,"min_discount":10},
-  {"category":"Moda Infantil","niche":"moda_infantil","search_url":"https://www.mercadolivre.com.br/moda-infantil","max_price":0,"min_discount":10},
-  {"category":"Moda Infantil","niche":"moda_infantil","search_url":"https://www.netshoes.com.br/moda-infantil","max_price":0,"min_discount":10},
-
-  {"category":"Eletrônicos - Smartphones","niche":"eletronicos","search_url":"https://www.shopee.com.br/search?keyword=smartphone","max_price":0,"min_discount":10},
-  {"category":"Eletrônicos - Smartphones","niche":"eletronicos","search_url":"https://www.amazon.com.br/s?k=smartphone","max_price":0,"min_discount":10},
-  {"category":"Eletrônicos - Smartphones","niche":"eletronicos","search_url":"https://www.mercadolivre.com.br/smartphone","max_price":0,"min_discount":10},
-  {"category":"Eletrônicos - Smartphones","niche":"eletronicos","search_url":"https://www.netshoes.com.br/smartphone","max_price":0,"min_discount":10},
-
-  {"category":"Esportes - Tênis","niche":"esportes","search_url":"https://www.shopee.com.br/search?keyword=tenis","max_price":0,"min_discount":10},
-  {"category":"Esportes - Tênis","niche":"esportes","search_url":"https://www.amazon.com.br/s?k=tenis","max_price":0,"min_discount":10},
-  {"category":"Esportes - Tênis","niche":"esportes","search_url":"https://www.mercadolivre.com.br/tenis","max_price":0,"min_discount":10},
-  {"category":"Esportes - Tênis","niche":"esportes","search_url":"https://www.netshoes.com.br/tenis","max_price":0,"min_discount":10},
-
-  {"category":"Choice","niche":"choice","search_url":"https://www.shopee.com.br/m/choice","max_price":0,"min_discount":10},
-
-  {"category":"Casa - Achadinhos","niche":"casa","search_url":"https://www.shopee.com.br/search?keyword=achadinhos+de+casa","max_price":0,"min_discount":10},
-  {"category":"Casa - Achadinhos","niche":"casa","search_url":"https://www.amazon.com.br/s?k=produtos+para+casa","max_price":0,"min_discount":10},
-  {"category":"Casa - Achadinhos","niche":"casa","search_url":"https://www.mercadolivre.com.br/achadinhos-de-casa","max_price":0,"min_discount":10},
-  {"category":"Casa - Achadinhos","niche":"casa","search_url":"https://www.netshoes.com.br/casa","max_price":0,"min_discount":10},
-
-  {"category":"Suplementos","niche":"suplementos","search_url":"https://www.shopee.com.br/search?keyword=whey+protein","max_price":0,"min_discount":10},
-  {"category":"Suplementos","niche":"suplementos","search_url":"https://www.amazon.com.br/s?k=whey+protein","max_price":0,"min_discount":10},
-  {"category":"Suplementos","niche":"suplementos","search_url":"https://www.mercadolivre.com.br/whey+protein","max_price":0,"min_discount":10},
-  {"category":"Suplementos","niche":"suplementos","search_url":"https://www.netshoes.com.br/suplementos","max_price":0,"min_discount":10}
-]
+{
+  "sites": [
+    {"nome": "amazon", "url": "https://www.amazon.com.br/s?k="},
+    {"nome": "mercadolivre", "url": "https://lista.mercadolivre.com.br/"},
+    {"nome": "shopee", "url": "https://shopee.com.br/search?keyword="},
+    {"nome": "netshoes", "url": "https://www.netshoes.com.br/busca?q="},
+    {"nome": "zattini", "url": "https://www.zattini.com.br/busca?q="}
+  ],
+  "nichos": [
+    {"id": "esportes", "termos": ["chuteira de campo", "bola de futebol oficial", "tenis de corrida masculino", "camisa de time 2024", "uniforme de basquete", "raquete tenis de mesa"]},
+    {"id": "moda", "termos": ["tenis", "camisa polo masculina", "vestido feminino casual", "roupa infantil conjunto", "calça jeans masculina", "scarpin feminino", "jaqueta de couro"]},
+    {"id": "eletrodomesticos", "termos": ["Smarttv","tv", "air fryer", "liquidificador", "micro-ondas", "geladeira", "maquina de lavar"]},
+    {"id": "eletronicos", "termos": ["fone bluetooth", "smartwatch", "caixa de som", "smartphone", "iphone", "carregador"]},
+    {"id": "choice", "termos": ["shopee choice eletronicos", "oferta relampago", "itens mais vendidos"]}
+  ]
+}

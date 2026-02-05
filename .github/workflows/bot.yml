@@ -2,7 +2,7 @@ name: PriceBot
 
 on:
   schedule:
-    - cron: "0 9,22 * * *"
+    - cron: "0 9,23 * * *"
   workflow_dispatch: {}
 
 jobs:

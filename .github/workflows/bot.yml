@@ -1,4 +1,4 @@
-name: PriceBot 24h – Taxa fixa corrigida
+name: PriceBot 24h – Taxa fixa
 
 on:
   push:
@@ -6,21 +6,22 @@ on:
       - main
   workflow_dispatch:
   schedule:
+    # Dispara a cada 5 minutos
     - cron: '*/5 * * * *'
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Baixar o código
+      # 1️⃣ Baixar o código do repositório
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Configurar Python 3.12
+      # 2️⃣ Configurar Python 3.11 (compatível com v13.15 do telegram)
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: '3.11'
 
       # 3️⃣ Instalar dependências
       - name: Install dependencies
@@ -28,32 +29,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 python-telegram-bot==13.15
 
-      # 4️⃣ Configurar variáveis de ambiente
+      # 4️⃣ Configurar variáveis de ambiente do Telegram
       - name: Set environment variables
         run: |
           echo "TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }}" >> $GITHUB_ENV
           echo "CHAT_ID=${{ secrets.CHAT_ID }}" >> $GITHUB_ENV
 
-      # 5️⃣ Executar bot com taxa fixa
+      # 5️⃣ Executar o bot com taxa fixa e delay aleatório
       - name: Run bot with fixed execution rate
         shell: bash
         run: |
           # -----------------------------
-          # Delay aleatório 0-4 minutos
+          # Delay aleatório entre 0 e 4 minutos
           # -----------------------------
           RANDOM_DELAY=$(( RANDOM % 240 ))
           echo "Aguardando $RANDOM_DELAY segundos antes de executar..."
           sleep $RANDOM_DELAY
 
           # -----------------------------
-          # Taxa de execução fixa
+          # Taxa de execução fixa (23,5%)
           # -----------------------------
           EXEC_RATE=0.235
           EXEC_PROB=$(python3 -c "import random; print(random.random())")
           echo "Valor aleatório gerado: $EXEC_PROB"
 
           # -----------------------------
-          # Comparação e execução
+          # Executar bot condicionalmente
           # -----------------------------
           EXECUTE=$(echo "$EXEC_PROB < $EXEC_RATE" | bc -l)
           if [ "$EXECUTE" -eq 1 ]; then

@@ -1,119 +1,116 @@
 import os
 import json
-import time
 import random
 import requests
-from datetime import datetime
+from bs4 import BeautifulSoup
 
-# ==========================
-# CONFIGURAÇÕES
-# ==========================
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+# =========================
+# CONFIG
+# =========================
+TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-HISTORY_FILE = "history.json"
-POSTS_PER_RUN = 3  # mínimo garantido
-TIME_BETWEEN_POSTS = 3  # segundos
-
-AFFILIATES = {
-    "amazon": "https://www.amazon.com.br/?tag=salvablessjj-20",
-    "shopee": "https://shopee.com.br",
-    "mercadolivre": "https://www.mercadolivre.com.br",
-    "netshoes": "https://www.netshoes.com.br/afiliado/rWODdSNWJGM",
-    "zattini": "https://www.zattini.com.br"
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
 }
 
-# ==========================
-# CATEGORIAS
-# ==========================
-CATEGORIES = [
-    {"nome": "Moda Masculina", "site": "amazon"},
-    {"nome": "Moda Feminina", "site": "zattini"},
-    {"nome": "Moda Infantil", "site": "netshoes"},
-    {"nome": "Eletrônicos", "site": "mercadolivre"},
-    {"nome": "Esportes", "site": "shopee"},
-    {"nome": "Casa", "site": "amazon"},
-    {"nome": "Suplementos", "site": "amazon"}
-]
+POSTS_PER_RUN = 3
 
-# ==========================
-# HISTORY
-# ==========================
-def load_history():
-    if not os.path.exists(HISTORY_FILE):
-        return []
-    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+# =========================
+# AFILIADOS
+# =========================
+AMAZON_TAG = "salvablessjj-20"
 
-def save_history(history):
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
-
-# ==========================
+# =========================
 # TELEGRAM
-# ==========================
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+# =========================
+def send_message(text):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {
         "chat_id": CHAT_ID,
         "text": text,
-        "parse_mode": "Markdown",
         "disable_web_page_preview": False
     }
     r = requests.post(url, json=payload, timeout=15)
     r.raise_for_status()
 
-# ==========================
-# GERADOR DE POST
-# ==========================
-def build_post(category):
-    site = category.get("site", "amazon")
-    link = AFFILIATES.get(site, AFFILIATES["amazon"])
+# =========================
+# AMAZON SCRAPER (SIMPLES)
+# =========================
+def scrape_amazon(query):
+    url = f"https://www.amazon.com.br/s?k={query}"
+    r = requests.get(url, headers=HEADERS, timeout=20)
+    soup = BeautifulSoup(r.text, "html.parser")
 
-    return f"""
-🔥 *CONFIRA AS OFERTAS DO DIA!*
+    products = []
 
-👕 *{category['nome']}*
-Selecionamos produtos com ótimo custo-benefício.
+    for item in soup.select("div[data-component-type='s-search-result']"):
+        title = item.select_one("h2 span")
+        link = item.select_one("h2 a")
+        price = item.select_one("span.a-offscreen")
 
-🛒 Confira agora:
-{link}
-"""
+        if not title or not link:
+            continue
 
-# ==========================
-# EXECUÇÃO PRINCIPAL
-# ==========================
+        name = title.text.strip()
+        href = link["href"]
+
+        if "dp/" not in href:
+            continue
+
+        price_value = "Consulte o preço"
+        if price:
+            price_value = price.text.strip()
+
+        full_link = f"https://www.amazon.com.br{href}"
+        if "tag=" not in full_link:
+            sep = "&" if "?" in full_link else "?"
+            full_link += f"{sep}tag={AMAZON_TAG}"
+
+        products.append({
+            "name": name,
+            "price": price_value,
+            "url": full_link
+        })
+
+    return products
+
+# =========================
+# MAIN
+# =========================
 def main():
-    history = load_history()
-    sent = 0
+    queries = [
+        "tenis esportivo",
+        "moda masculina",
+        "moda feminina",
+        "moda infantil",
+        "suplementos"
+    ]
 
-    random.shuffle(CATEGORIES)
+    all_products = []
 
-    for cat in CATEGORIES:
-        if sent >= POSTS_PER_RUN:
-            break
-
+    for q in queries:
         try:
-            message = build_post(cat)
-            send_telegram(message)
-
-            history.append({
-                "categoria": cat["nome"],
-                "site": cat.get("site", "amazon"),
-                "data": datetime.utcnow().isoformat()
-            })
-
-            sent += 1
-            time.sleep(TIME_BETWEEN_POSTS)
-
+            all_products.extend(scrape_amazon(q))
         except Exception as e:
-            print(f"Erro ao postar {cat['nome']}: {e}")
+            print("Erro Amazon:", e)
 
-    save_history(history)
+    if not all_products:
+        send_message("⚠️ Nenhuma oferta encontrada nesta execução.")
+        return
 
-    if sent == 0:
-        send_telegram("⚠️ Nenhuma oferta enviada nesta execução.")
+    random.shuffle(all_products)
+    selected = all_products[:POSTS_PER_RUN]
 
-# ==========================
+    for p in selected:
+        msg = (
+            f"🔥 OFERTA EM DESTAQUE!\n\n"
+            f"{p['name']}\n"
+            f"💰 {p['price']}\n\n"
+            f"🛒 Comprar agora:\n{p['url']}"
+        )
+        send_message(msg)
+
+# =========================
 if __name__ == "__main__":
     main()

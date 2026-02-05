@@ -1,13 +1,8 @@
-# =========================================
-# PriceBot – 24h, 5x/hora com aleatoriedade
-# =========================================
 name: PriceBot 24h – 5x/hora
 
 on:
-  # Executa automaticamente 5x por hora (~ a cada 12 minutos)
   schedule:
-    - cron: '*/12 * * * *'
-  # Permite disparar manualmente
+    - cron: '*/12 * * * *'  # Executa a cada 12 minutos → 5x/hora
   workflow_dispatch:
 
 jobs:
@@ -15,30 +10,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # 1️⃣ Pegar o código do repositório
-    - name: Checkout do repositório
-      uses: actions/checkout@v3
+      - name: Checkout do repositório
+        uses: actions/checkout@v3
 
-    # 2️⃣ Configurar Python
-    - name: Configurar Python 3.12
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
 
-    # 3️⃣ Instalar dependências
-    - name: Instalar dependências
-      run: |
-        python -m pip install --upgrade pip
-        pip install requests beautifulsoup4 python-telegram-bot==13.15
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 python-telegram-bot --upgrade
 
-    # 4️⃣ Executar bot
-    - name: Executar bot
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        CHAT_ID: ${{ secrets.CHAT_ID }}
-      run: |
-        echo "Aguardando aleatoriamente 0-4 minutos para dispersar execuções..."
-        DELAY=$(( RANDOM % 240 ))  # 0 a 240 segundos
-        echo "Aguardando $DELAY segundos..."
-        sleep $DELAY
-        python bot.py
+      - name: Executar bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: |
+          DELAY=$(( RANDOM % 240 ))
+          echo "Aguardando $DELAY segundos para aleatoriedade..."
+          sleep $DELAY
+          python bot.py

@@ -2,7 +2,6 @@ import requests, json, os, random
 from bs4 import BeautifulSoup
 import telegram
 from datetime import datetime
-import re
 
 # =============================
 # ⚡ CONFIGURAÇÃO TELEGRAM
@@ -86,6 +85,10 @@ def get_products(url):
         soup = BeautifulSoup(r.text, "html.parser")
         products = []
         for a in soup.find_all("a", href=True):
+            # Nome
+            title_tag = a.select_one("h2, span.a-text-normal")
+            name = title_tag.text.strip()[:80] if title_tag else None
+
             # Preço
             price_tag = a.select_one(".andes-money-amount__fraction, span.a-offscreen")
             try:
@@ -93,15 +96,11 @@ def get_products(url):
             except:
                 price = 0
 
-            # Nome
-            title_tag = a.select_one("h2, span.a-text-normal")
-            name = title_tag.text.strip()[:80] if title_tag else None
-
             # Imagem
             img_tag = a.select_one("img")
             image_url = img_tag.get('data-src') or img_tag.get('src') or "https://via.placeholder.com/300"
 
-            # Oferta
+            # Oferta / promoção
             offer = False
             if a.select_one(".promotion, .offer-badge, .sale-badge"):
                 offer = True

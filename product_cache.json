@@ -1,1 +1,50 @@
-[]
+[
+  {
+    "name": "Produto Amazon 1",
+    "price": "Consulte o preço",
+    "url": "https://amzn.to/46iUEb6",
+    "site": "amazon"
+  },
+  {
+    "name": "Produto Amazon 2",
+    "price": "Consulte o preço",
+    "url": "https://amzn.to/3NR54IP",
+    "site": "amazon"
+  },
+  {
+    "name": "Produto Mercado Livre 1",
+    "price": "Consulte o preço",
+    "url": "https://mercadolivre.com/sec/33LveAZ",
+    "site": "mercadolivre"
+  },
+  {
+    "name": "Produto Mercado Livre 2",
+    "price": "Consulte o preço",
+    "url": "https://mercadolivre.com/sec/26Rjo9j",
+    "site": "mercadolivre"
+  },
+  {
+    "name": "Produto Mercado Livre 3",
+    "price": "Consulte o preço",
+    "url": "https://mercadolivre.com/sec/2TupDRd",
+    "site": "mercadolivre"
+  },
+  {
+    "name": "Produto Shopee 1",
+    "price": "Consulte o preço",
+    "url": "https://s.shopee.com.br/8KjpTzVMDC",
+    "site": "shopee"
+  },
+  {
+    "name": "Produto Shopee 2",
+    "price": "Consulte o preço",
+    "url": "https://s.shopee.com.br/BO7l1QAut",
+    "site": "shopee"
+  },
+  {
+    "name": "Tênis Adidas Grand Court Alpha Masculino",
+    "price": "Consulte o preço",
+    "url": "https://www.netshoes.com.br/afiliado/rWODdSNWJGM",
+    "site": "netshoes"
+  }
+]

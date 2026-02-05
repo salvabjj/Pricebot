@@ -2,7 +2,7 @@ name: PriceBot
 
 on:
   schedule:
-    - cron: '0,20,40 * * * *'  # a cada hora, nos minutos 0, 20 e 40
+    - cron: '*/5 * * * *'  # a cada 5 minutos, 24h
   workflow_dispatch: {}
 
 jobs:

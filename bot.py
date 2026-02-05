@@ -11,15 +11,26 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
 POSTS_PER_RUN = 3
+CACHE_FILE = "product_cache.json"
+
+AMAZON_TAG = "salvablessjj-20"
 
 # =========================
-# AFILIADOS
+# UTIL
 # =========================
-AMAZON_TAG = "salvablessjj-20"
+def load_json(path):
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 # =========================
 # TELEGRAM
@@ -35,10 +46,10 @@ def send_message(text):
     r.raise_for_status()
 
 # =========================
-# AMAZON SCRAPER (SIMPLES)
+# AMAZON SCRAPER
 # =========================
 def scrape_amazon(query):
-    url = f"https://www.amazon.com.br/s?k={query}"
+    url = f"https://www.amazon.com.br/s?k={query.replace(' ', '+')}"
     r = requests.get(url, headers=HEADERS, timeout=20)
     soup = BeautifulSoup(r.text, "html.parser")
 
@@ -52,15 +63,12 @@ def scrape_amazon(query):
         if not title or not link:
             continue
 
-        name = title.text.strip()
-        href = link["href"]
-
+        href = link.get("href", "")
         if "dp/" not in href:
             continue
 
-        price_value = "Consulte o preço"
-        if price:
-            price_value = price.text.strip()
+        name = title.text.strip()
+        price_text = price.text.strip() if price else "Consulte o preço"
 
         full_link = f"https://www.amazon.com.br{href}"
         if "tag=" not in full_link:
@@ -69,8 +77,9 @@ def scrape_amazon(query):
 
         products.append({
             "name": name,
-            "price": price_value,
-            "url": full_link
+            "price": price_text,
+            "url": full_link,
+            "site": "amazon"
         })
 
     return products
@@ -79,6 +88,8 @@ def scrape_amazon(query):
 # MAIN
 # =========================
 def main():
+    cache = load_json(CACHE_FILE)
+
     queries = [
         "tenis esportivo",
         "moda masculina",
@@ -87,21 +98,42 @@ def main():
         "suplementos"
     ]
 
-    all_products = []
+    found_products = []
 
     for q in queries:
         try:
-            all_products.extend(scrape_amazon(q))
+            found_products.extend(scrape_amazon(q))
         except Exception as e:
             print("Erro Amazon:", e)
 
-    if not all_products:
-        send_message("⚠️ Nenhuma oferta encontrada nesta execução.")
-        return
+    # =========================
+    # SE ACHOU PRODUTOS → SALVA
+    # =========================
+    if found_products:
+        for p in found_products:
+            if not any(c["url"] == p["url"] for c in cache):
+                cache.append(p)
 
-    random.shuffle(all_products)
-    selected = all_products[:POSTS_PER_RUN]
+        cache = cache[-200:]  # limita cache
+        save_json(CACHE_FILE, cache)
 
+        random.shuffle(found_products)
+        selected = found_products[:POSTS_PER_RUN]
+
+    # =========================
+    # SE NÃO ACHOU → FALLBACK
+    # =========================
+    else:
+        if not cache:
+            send_message("⚠️ Cache vazio. Aguardando próxima execução.")
+            return
+
+        random.shuffle(cache)
+        selected = cache[:POSTS_PER_RUN]
+
+    # =========================
+    # ENVIO
+    # =========================
     for p in selected:
         msg = (
             f"🔥 OFERTA EM DESTAQUE!\n\n"

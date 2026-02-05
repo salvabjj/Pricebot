@@ -12,6 +12,6 @@
     {"id": "eletrodomesticos", "termos": ["Smarttv", "air fryer", "liquidificador", "micro-ondas"]},
     {"id": "eletronicos", "termos": ["fone bluetooth", "smartwatch", "caixa de som", "smartphone", "iphone"]},
     {"id": "choice", "termos": ["shopee choice", "itens mais vendidos", "oferta relampago"]},
-    {"id": "fallback", "termos": ["promocao", "ofertas", "mais vendidos"]}
+    {"id": "fallback", "termos": ["promocao", "ofertas do dia", "mais vendidos", "queima de estoque"]}
   ]
 }

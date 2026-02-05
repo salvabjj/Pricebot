@@ -20,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       # 3️⃣ Instalar dependências
       - name: Install dependencies
@@ -36,14 +36,13 @@ jobs:
 
       # 5️⃣ Rodar o bot com execução aleatória
       - name: Run bot with random chance
+        shell: bash
         run: |
-          python - <<EOF
-import random
-import subprocess
-
-if random.random() < 0.33:
-    print("[Random] Executando o bot...")
-    subprocess.run(["python", "bot.py"])
-else:
-    print("[Random] Ignorado nesta execução")
-EOF
+          RANDOM_CHANCE=$(python3 -c "import random; print(random.random())")
+          echo "Random value: $RANDOM_CHANCE"
+          if (( $(echo "$RANDOM_CHANCE < 0.33" | bc -l) )); then
+            echo "[Random] Executando o bot..."
+            python3 bot.py
+          else
+            echo "[Random] Ignorado nesta execução"
+          fi

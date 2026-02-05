@@ -19,23 +19,51 @@ def load_json(file):
             except: return {}
     return {}
 
-def extrair_detalhes_produto(url):
+def extrair_dados_loja(soup, url):
+    preco_de = None
+    preco_por = None
+    
+    if "amazon.com.br" in url:
+        # Lógica Amazon
+        p_de = soup.find("span", class_="a-price a-text-price")
+        p_por = soup.find("span", class_="a-price-whole")
+        if p_de: preco_de = p_de.get_text().replace("R$", "").strip()
+        if p_por: preco_por = p_por.get_text().strip()
+            
+    elif "netshoes.com.br" in url or "zattini.com.br" in url:
+        # Lógica Netshoes/Zattini
+        p_de = soup.find("del")
+        p_por = soup.find("strong", {"itemprop": "price"})
+        if p_de: preco_de = p_de.get_text().replace("R$", "").strip()
+        if p_por: preco_por = p_por.get_text().replace("R$", "").strip()
+
+    elif "mercadolivre.com.br" in url:
+        # Lógica Mercado Livre
+        p_de = soup.find("span", class_="andes-money-amount__fraction")
+        if p_de: preco_por = p_de.get_text().strip()
+
+    return preco_de, preco_por
+
+def extrair_detalhes_completo(url):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     try:
         res = requests.get(url, headers=headers, timeout=15)
         soup = BeautifulSoup(res.text, "html.parser")
         
-        # Tenta pegar a imagem (og:image é o padrão de redes sociais)
+        # 1. Tenta pegar a imagem
         img_tag = soup.find("meta", property="og:image")
         img_url = img_tag["content"] if img_tag else None
         
-        # Tenta pegar o nome real do produto
+        # 2. Tenta pegar o nome
         title_tag = soup.find("meta", property="og:title")
-        nome_produto = title_tag["content"] if title_tag else "Produto em Oferta"
+        nome = title_tag["content"].split("|")[0].strip() if title_tag else "Produto em Oferta"
+        
+        # 3. Tenta pegar os preços
+        preco_de, preco_por = extrair_dados_loja(soup, url)
 
-        return nome_produto, img_url
+        return nome, img_url, preco_de, preco_por
     except:
-        return None, None
+        return None, None, None, None
 
 def converter_para_afiliado(url_pura, site_nome, ids):
     site = site_nome.lower()
@@ -50,21 +78,6 @@ def converter_para_afiliado(url_pura, site_nome, ids):
     elif "netshoes" in site or "zattini" in site:
         return f"{url_pura}?campaign={ids.get('netshoes', 'rWODdSNWJGM')}"
     return url_pura
-
-def minerar_links(site_url, site_nome):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    links = []
-    try:
-        res = requests.get(site_url, headers=headers, timeout=15)
-        soup = BeautifulSoup(res.text, "html.parser")
-        for a in soup.find_all('a', href=True):
-            href = a['href']
-            if any(x in href.lower() for x in ["/p/", "/item/", "/dp/"]):
-                if not href.startswith("http"):
-                    href = f"https://www.{site_nome.lower()}.com.br{href}"
-                links.append(href)
-    except: pass
-    return list(set(links))
 
 def main():
     token = os.getenv("TELEGRAM_TOKEN")
@@ -85,28 +98,44 @@ def main():
         if enviados >= 2: break
 
         for site in config.get("sites", []):
-            if nicho["id"] == "choice" and "shopee" not in site["nome"]: continue
-            
             termo = random.choice(nicho["termos"])
-            links = minerar_links(site["url"] + termo.replace(" ", "+"), site["nome"])
+            # Lógica simples de busca
+            url_busca = site["url"] + termo.replace(" ", "+")
             
-            for link in links:
+            # Aqui simplificamos a mineração (pegando os primeiros links /p/)
+            headers = {"User-Agent": "Mozilla/5.0"}
+            try:
+                r = requests.get(url_busca, headers=headers, timeout=10)
+                s = BeautifulSoup(r.text, "html.parser")
+                links = [a['href'] for a in s.find_all('a', href=True) if "/p/" in a['href'] or "/dp/" in a['href']]
+            except: links = []
+
+            for link in list(set(links)):
+                if not link.startswith("http"):
+                    link = f"https://www.{site['nome'].lower()}.com.br" + (link if link.startswith("/") else "/" + link)
+
                 if link not in history:
-                    nome_real, img = extrair_detalhes_produto(link)
-                    link_afiliado = converter_para_afiliado(link, site["nome"], afiliados)
+                    nome, img, p_de, p_por = extrair_detalhes_completo(link)
                     
+                    if not p_por: continue # Se não achar o preço, pula para o próximo
+                    
+                    link_af = converter_para_afiliado(link, site["nome"], afiliados)
                     frase = random.choice(copies.get(nicho["id"], ["🔥 OFERTA!"]))
                     
-                    # Montagem da Mensagem com Nome Real do Produto
-                    mensagem = f"{frase}\n\n📦 *{nome_real[:80]}...*\n\n💰 *Preço Promocional na {site['nome'].upper()}*"
+                    # Montagem da mensagem com preços
+                    txt_preco = f"💰 *Por: R$ {p_por}*"
+                    if p_de:
+                        txt_preco = f"❌ De: ~~R$ {p_de}~~\n✅ *Por: R$ {p_por}*"
+
+                    msg = f"{frase}\n\n📦 *{nome[:70]}...*\n\n{txt_preco}\n\n🛒 Loja: {site['nome'].upper()}"
                     
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🛒 IR PARA LOJA", url=link_afiliado)]])
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🛒 IR PARA LOJA", url=link_af)]])
                     
                     try:
                         if img:
-                            bot.send_photo(chat_id=chat_id, photo=img, caption=mensagem, reply_markup=kb, parse_mode="Markdown")
+                            bot.send_photo(chat_id=chat_id, photo=img, caption=msg, reply_markup=kb, parse_mode="MarkdownV2" if "~~" in txt_preco else "Markdown")
                         else:
-                            bot.send_message(chat_id=chat_id, text=mensagem, reply_markup=kb, parse_mode="Markdown")
+                            bot.send_message(chat_id=chat_id, text=msg, reply_markup=kb, parse_mode="Markdown")
                         
                         history.append(link)
                         enviados += 1

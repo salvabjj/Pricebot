@@ -1,4 +1,4 @@
-import requests, json, os, random
+import requests, json, os, random, time
 from bs4 import BeautifulSoup
 import telegram
 from datetime import datetime
@@ -10,15 +10,6 @@ TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = int(os.environ.get("CHAT_ID", 0))
 bot = telegram.Bot(token=TOKEN)
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-
-# =============================
-# ⚡ TESTE DE TELEGRAM
-# =============================
-try:
-    bot.send_message(CHAT_ID, "✅ Teste do bot funcionando!")
-    print("[Teste Telegram] Mensagem enviada com sucesso!")
-except Exception as e:
-    print(f"[Erro Telegram Teste] {e}")
 
 # =============================
 # ⚡ FUNÇÃO PARA CARREGAR ARQUIVOS JSON
@@ -74,11 +65,13 @@ def get_products(url):
         for a in soup.find_all("a", href=True):
             price = a.select_one(".andes-money-amount__fraction, span.a-offscreen")
             title = a.select_one("h2, span.a-text-normal")
-            sales_tag = a.select_one(".ui-pdp-subtitle")  # histórico de vendas
+            sales_tag = a.select_one(".ui-pdp-subtitle")
+            promo_tag = a.select_one(".promotion-label, .tag-promotion")
             if price and title:
                 try:
                     value = int(price.text.replace(".", "").replace(",", ""))
                     sales = int(sales_tag.text.split()[0].replace(".", "")) if sales_tag else 0
+                    promo = True if promo_tag else False
                 except:
                     continue
                 products.append({
@@ -86,6 +79,7 @@ def get_products(url):
                     "price": value,
                     "url": a["href"],
                     "sales": sales,
+                    "promo": promo,
                     "time": datetime.now().isoformat()
                 })
         return products[:15]
@@ -97,6 +91,11 @@ def get_products(url):
 # ⚡ EXECUÇÃO PRINCIPAL
 # =============================
 for cat in categories:
+    # Aguarda um tempo aleatório de 0 a 240 segundos (4 min) dentro da janela de 12 min
+    delay = random.randint(0, 240)
+    print(f"[Aguardando aleatório] {delay}s antes de buscar categoria {cat['category']}")
+    time.sleep(delay)
+
     print(f"\n[Buscando produtos] Categoria: {cat['category']} | URL: {cat['search_url']}")
     products = get_products(cat["search_url"])
     print(f"[Info] Produtos encontrados: {len(products)}")
@@ -118,6 +117,7 @@ for cat in categories:
         cat_prices = [v for k,v in history.items() if cat["category"] in k]
         if cat_prices and p["price"] < min(cat_prices): send = True
         if sales >= 50: send = True
+        if p.get("promo"): send = True
 
         # =============================
         # ⚡ ENVIO DA MENSAGEM
@@ -129,17 +129,17 @@ for cat in categories:
             cupom_text = f"\n🎫 Use o cupom: {cupom}" if cupom else ""
 
             msg = f"{text}\n{p['name']}\n💰 R$ {p['price']} (-{discount}%)\n{link}{cupom_text}\n📈 Vendas: {sales}"
-            print(f"[Telegram] Tentando enviar mensagem para CHAT_ID={CHAT_ID} | Token={TOKEN[:5]}...")
+            print(f"[Telegram] Tentando enviar mensagem | Produto: {p['name']}")
 
             try:
                 bot.send_message(CHAT_ID, msg)
-                print(f"[Telegram] Mensagem enviada para: {p['name']}")
+                print(f"[Telegram] Mensagem enviada: {p['name']}")
             except Exception as e:
                 print(f"[Erro Telegram] {e}")
 
             ranking.append((score, p))
         else:
-            print(f"[Ignorado] {p['name']} - Desconto: {discount}% | Queda: {price_drop} | Vendas: {sales}")
+            print(f"[Ignorado] {p['name']} - Desconto: {discount}% | Queda: {price_drop} | Vendas: {sales} | Promo: {p.get('promo')}")
 
         # Atualiza histórico
         history[key] = p["price"]

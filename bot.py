@@ -1,25 +1,22 @@
-import requests, json, os, random
+import requests, json, os, random, sys
 from bs4 import BeautifulSoup
 import telegram
+from datetime import datetime
 
-# -----------------------------
-# Configurações do Telegram
-# -----------------------------
+# =============================
+# ⚡ CONFIGURAÇÃO TELEGRAM
+# =============================
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = int(os.environ.get("CHAT_ID", 0))  # garante que seja inteiro
-
 bot = telegram.Bot(token=TOKEN)
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# -----------------------------
-# Função para carregar arquivos JSON
-# -----------------------------
+# =============================
+# ⚡ FUNÇÃO PARA CARREGAR ARQUIVOS JSON
+# =============================
 def load(file, default):
     return json.load(open(file)) if os.path.exists(file) else default
 
-# -----------------------------
-# Carregar arquivos
-# -----------------------------
 categories = load("categories.json", [])
 history = load("history.json", {})
 copies = load("copy.json", {})
@@ -28,9 +25,9 @@ affiliates = load("affiliates.json", {})
 ranking = []
 total_found = 0
 
-# -----------------------------
-# Função para aplicar link afiliado
-# -----------------------------
+# =============================
+# ⚡ LINK AFILIADO
+# =============================
 def apply_affiliate(url, niche):
     if "amazon" in url: return affiliates.get("amazon", url)
     if "shopee" in url: return affiliates.get("shopee", url)
@@ -38,20 +35,37 @@ def apply_affiliate(url, niche):
     if "netshoes" in url: return affiliates.get("netshoes", url)
     return url
 
-# -----------------------------
-# Função para pegar cupom (opcional)
-# -----------------------------
-def get_coupon(niche):
+# =============================
+# ⚡ BUSCA AUTOMÁTICA DE CUPONS
+# =============================
+def fetch_coupons(niche, site_url):
+    cupons = []
     try:
-        with open(f"coupons_{niche}.json","r") as f:
-            cupons = json.load(f)
-            return random.choice(cupons) if cupons else ""
-    except:
-        return ""
+        r = requests.get(site_url, headers=HEADERS, timeout=20)
+        soup = BeautifulSoup(r.text, "html.parser")
+        for tag in soup.find_all("span", class_="coupon-code"):
+            code = tag.text.strip()
+            if code: cupons.append(code)
+    except Exception as e:
+        print(f"[Erro cupom] {niche} - {e}")
+    if cupons:
+        with open(f"coupons_{niche}.json", "w") as f:
+            json.dump(cupons, f)
+    return cupons
 
-# -----------------------------
-# Função para pegar produtos
-# -----------------------------
+def get_coupon(niche, site_url):
+    cupons = fetch_coupons(niche, site_url)
+    try:
+        with open(f"coupons_{niche}.json", "r") as f:
+            cupons_file = json.load(f)
+            all_coupons = cupons + cupons_file
+            return random.choice(all_coupons) if all_coupons else ""
+    except:
+        return ""  # Retorna vazio se não houver
+
+# =============================
+# ⚡ PEGAR PRODUTOS
+# =============================
 def get_products(url):
     try:
         r = requests.get(url, headers=HEADERS, timeout=20)
@@ -65,66 +79,71 @@ def get_products(url):
                     value = int(price.text.replace(".", "").replace(",", ""))
                 except:
                     continue
-                products.append({"name": title.text.strip()[:80], "price": value, "url": a["href"]})
+                products.append({
+                    "name": title.text.strip()[:80],
+                    "price": value,
+                    "url": a["href"],
+                    "time": datetime.now().isoformat()
+                })
         return products[:15]
     except Exception as e:
-        print(f"[ERRO] Falha ao buscar produtos de {url}: {e}")
+        print(f"[Erro get_products] {url} - {e}")
         return []
 
-# -----------------------------
-# Loop principal
-# -----------------------------
+# =============================
+# ⚡ EXECUÇÃO PRINCIPAL
+# =============================
 for cat in categories:
+    print(f"\n[Buscando produtos] Categoria: {cat['category']} | URL: {cat['search_url']}")
     products = get_products(cat["search_url"])
     total_found += len(products)
-    print(f"[INFO] Categoria '{cat['category']}' - {len(products)} produtos encontrados")
+    print(f"[INFO] Produtos encontrados: {len(products)}")
 
     for p in products:
         key = p["name"]
         old_price = history.get(key, p["price"])
         discount = round((old_price - p["price"]) / old_price * 100, 1) if old_price else 0
-        score = discount*2 + (old_price - p["price"])
+        price_drop = old_price - p["price"]  # queda de preço recente
+        score = discount*2 + price_drop
 
-        # Posta mesmo sem cupom, mínimo 5% de desconto
-        if discount >= 5:
+        # Posta mesmo sem cupom, mínimo 5% de desconto e queda de preço positiva
+        if discount >= 5 and price_drop > 0:
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])
-            cupom = get_coupon(cat["niche"])
+            cupom = get_coupon(cat["niche"], cat["search_url"])
             cupom_text = f"\n🎫 Use o cupom: {cupom}" if cupom else ""
+
             msg = f"{text}\n{p['name']}\n💰 R$ {p['price']} (-{discount}%)\n{link}{cupom_text}"
-            
-            # Tenta enviar mensagem e registra log
+            print(f"[Enviando] {msg}")
             try:
                 bot.send_message(CHAT_ID, msg)
-                print(f"[INFO] Mensagem enviada: {p['name'][:50]}...")
             except Exception as e:
-                print(f"[ERRO] Não foi possível enviar a mensagem: {e}")
+                print(f"[Erro Telegram] {e}")
 
-            ranking.append((score,p))
+            ranking.append((score, p))
+        else:
+            print(f"[Ignorado] {p['name']} - Desconto: {discount}% | Queda: {price_drop}")
 
         # Atualiza histórico
         history[key] = p["price"]
 
-# -----------------------------
-# Ranking diário
-# -----------------------------
+# =============================
+# ⚡ RANKING DIÁRIO
+# =============================
 ranking.sort(reverse=True,key=lambda x:x[0])
 if ranking:
-    msg="🏆 TOP OFERTAS DO DIA\n\n"
-    for i,(_,p) in enumerate(ranking[:5],1):
-        msg+=f"{i}️⃣ {p['name']} – R$ {p['price']}\n"
+    msg = "🏆 TOP OFERTAS DO DIA\n\n"
+    for i,(_,p) in enumerate(ranking[:5], 1):
+        msg += f"{i}️⃣ {p['name']} – R$ {p['price']}\n"
+    print(f"[Enviando Ranking]\n{msg}")
     try:
-        bot.send_message(CHAT_ID,msg)
-        print("[INFO] Ranking diário enviado")
+        bot.send_message(CHAT_ID, msg)
     except Exception as e:
-        print(f"[ERRO] Não foi possível enviar o ranking: {e}")
+        print(f"[Erro Telegram Ranking] {e}")
 
-# -----------------------------
-# Log total produtos encontrados
-# -----------------------------
-print(f"[INFO] Total de produtos encontrados nesta execução: {total_found}")
-
-# -----------------------------
-# Salva histórico
-# -----------------------------
-json.dump(history, open("history.json","w"))
+# =============================
+# ⚡ LOG TOTAL E SALVAR HISTÓRICO
+# =============================
+print(f"\n[INFO] Total de produtos encontrados nesta execução: {total_found}")
+json.dump(history, open("history.json", "w"))
+print("[Histórico salvo]")

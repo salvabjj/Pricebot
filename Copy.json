@@ -19,9 +19,10 @@
     "👗 LOOK DO DIA! Tendências de moda com preço de outlet:",
     "👟 PISANTE NOVO! Confira essa promoção de calçados e vestuário:"
   ],
-  "choice": [
-    "💎 ESCOLHA PREMIUM! Um dos itens mais vendidos com desconto:",
-    "🌟 SELEÇÃO ESPECIAL! Esse produto é campeão de vendas:",
-    "🔥 SELEÇÃO CHOICE! O melhor custo-benefício que você vai ver hoje:"
+  "fallback": [
+    "💎 ACHADINHO EXCLUSIVO! Encontramos este item com um preço incrível:",
+    "🌟 SELEÇÃO ESPECIAL! Um dos produtos mais desejados do momento:",
+    "🔥 OPORTUNIDADE! Confira esse item que está bombando hoje:",
+    "🎯 DIRETO NO ALVO! Economia garantida nesse favorito da galera:"
   ]
 }

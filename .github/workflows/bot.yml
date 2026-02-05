@@ -1,39 +1,36 @@
-name: PriceBot 24h – 10x por hora
-
+name: PriceBot Pro Max 3.11
 on:
   schedule:
-    - cron: '*/6 * * * *'
+    - cron: '*/20 * * * *'
   workflow_dispatch:
 
 jobs:
-  executar-bot:
+  build:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
-      - name: Checkout do repositório
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Configurar Python 3.11
+      - name: Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Instalar dependências
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 python-telegram-bot==13.15
+      - name: Deps
+        run: pip install requests beautifulsoup4 python-telegram-bot==13.15
 
-      - name: Delay aleatório
-        run: |
-          python - << 'EOF'
-          import time, random
-          delay = random.randint(0, 240)
-          print(f"Aguardando {delay} segundos...")
-          time.sleep(delay)
-          EOF
-
-      - name: Executar bot
+      - name: Run
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python bot.py
+        run: python Bot.py
+
+      - name: Save
+        run: |
+          git config --global user.name "AutoBot"
+          git config --global user.email "bot@github.com"
+          git add history.json
+          git commit -m "update [skip ci]" || exit 0
+          git push

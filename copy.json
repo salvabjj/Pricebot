@@ -1,10 +1,27 @@
 {
-  "moda_masculina": ["👕 MODA MASCULINA EM OFERTA!\n🔥 Aproveite:"],
-  "moda_feminina": ["👗 MODA FEMININA EM OFERTA!\n💥 Confira:"],
-  "moda_infantil": ["🧒 MODA INFANTIL EM OFERTA!\n🎉 Corre:"],
-  "eletronicos": ["⚡ ELETRÔNICO EM QUEDA!\n💰 Aproveite:"],
-  "esportes": ["🏅 ESPORTE EM OFERTA!\n🔥 Confira:"],
-  "choice": ["⭐ SHOPEE CHOICE!\n💥 Não perca:"],
-  "casa": ["🏠 ACHADINHOS DE CASA!\n💥 Super Oferta:"],
-  "suplementos": ["💪 SUPLEMENTOS EM OFERTA!\n🔥 Aproveite agora:"]
+  "esportes": [
+    "⚽ GOL DE PLACA! Olha esse item de esporte em oferta:",
+    "🏆 EQUIPE PREPARADA! Garanta seu equipamento com desconto:",
+    "👟 PERFORMANCE MÁXIMA! Promoção especial para atletas:"
+  ],
+  "eletrodomesticos": [
+    "🏠 SUA COZINHA MERECE! Facilite sua vida com esse desconto:",
+    "✨ ACHADINHO PARA O LAR! Confira essa oferta incrível:",
+    "🍲 ECONOMIA REAL! O item que faltava para sua casa no precinho:"
+  ],
+  "eletronicos": [
+    "⚡ TECNOLOGIA PURA! O gadget que você queria com desconto:",
+    "🎧 QUALIDADE DE SOM! Confira essa promoção de eletrônico:",
+    "📱 UPGRADE NO SETUP! Olha esse desconto tecnológico:"
+  ],
+  "moda": [
+    "👕 ESTILO E CONFORTO! Renove seu guarda-roupa com essa oferta:",
+    "👗 LOOK DO DIA! Tendências de moda com preço de outlet:",
+    "👟 PISANTE NOVO! Confira essa promoção de calçados e vestuário:"
+  ],
+  "choice": [
+    "💎 ESCOLHA PREMIUM! Um dos itens mais vendidos com desconto:",
+    "🌟 SELEÇÃO ESPECIAL! Esse produto é campeão de vendas:",
+    "🔥 SELEÇÃO CHOICE! O melhor custo-benefício que você vai ver hoje:"
+  ]
 }

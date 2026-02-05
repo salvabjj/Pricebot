@@ -12,7 +12,17 @@ bot = telegram.Bot(token=TOKEN)
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 # =============================
-# ⚡ FUNÇÃO PARA CARREGAR ARQUIVOS JSON
+# ⚡ LINKS DE AFILIADOS
+# =============================
+affiliates = {
+    "amazon": "SEUTAG-20",
+    "shopee": "18308930971",
+    "mercadolivre": "1561730990",
+    "netshoes": "rWODdSNWJGM"
+}
+
+# =============================
+# ⚡ FUNÇÃO PARA CARREGAR JSON
 # =============================
 def load(file, default):
     return json.load(open(file)) if os.path.exists(file) else default
@@ -20,53 +30,26 @@ def load(file, default):
 categories = load("categories.json", [])
 history = load("history.json", {})
 copies = load("copy.json", {})
-affiliates = load("affiliates.json", {})
 
 ranking = []
+fallback_counter = 0
 
 # =============================
-# ⚡ PARSE DE PREÇO POR SITE
-# =============================
-def parse_price(a, site_url):
-    try:
-        if "amazon" in site_url:
-            el = a.select_one("span.a-offscreen")
-        elif "shopee" in site_url:
-            el = a.select_one("div._1w9jLI.QbH7Ig._1VfKBz")
-        elif "mercadolivre" in site_url:
-            el = a.select_one(".price-tag-fraction")
-        elif "netshoes" in site_url:
-            el = a.select_one(".productPrice")
-        else:
-            el = None
-        if el:
-            text = el.text.strip().replace(".", "").replace(",", "")
-            return int(''.join(filter(str.isdigit, text)))
-    except:
-        pass
-    return 0
-
-# =============================
-# ⚡ LINK AFILIADO
+# ⚡ APLICAR LINK DE AFILIADO
 # =============================
 def apply_affiliate(url, niche):
     if "amazon" in url:
-        tag = affiliates.get("amazon", "SEUTAG-20")
-        try:
-            asin = url.split("/dp/")[1].split("/")[0]
-            return f"https://www.amazon.com.br/dp/{asin}/?tag={tag}"
-        except:
-            return url
+        return f"{url}?tag={affiliates.get('amazon','')}"
     if "shopee" in url:
-        return f"{affiliates.get('shopee', '')}?{url.split('m/choice')[-1]}"
+        return f"https://shopee.com.br/universal-link/{affiliates.get('shopee','')}"
     if "mercadolivre" in url:
-        return f"{url}?m={affiliates.get('mercadolivre', '')}"
+        return f"https://www.mercadolivre.com.br/affiliates/{affiliates.get('mercadolivre','')}"
     if "netshoes" in url:
-        return f"{url}?af={affiliates.get('netshoes', '')}"
+        return f"https://www.netshoes.com.br/afiliado/{affiliates.get('netshoes','')}"
     return url
 
 # =============================
-# ⚡ BUSCA AUTOMÁTICA DE CUPONS
+# ⚡ BUSCAR CUPONS AUTOMÁTICOS
 # =============================
 def fetch_coupons(niche, site_url):
     cupons = []
@@ -102,19 +85,33 @@ def get_products(url):
         soup = BeautifulSoup(r.text, "html.parser")
         products = []
         for a in soup.find_all("a", href=True):
-            price = parse_price(a, url)
-            title = a.select_one("h2, span.a-text-normal")
+            # Preço
+            price_tag = a.select_one(".andes-money-amount__fraction, span.a-offscreen")
+            try:
+                price = float(price_tag.text.replace("R$", "").replace(".", "").replace(",", ".")) if price_tag else 0
+            except:
+                price = 0
+
+            # Nome
+            title_tag = a.select_one("h2, span.a-text-normal")
+            name = title_tag.text.strip()[:80] if title_tag else None
+
+            # Imagem
             img_tag = a.select_one("img")
-            image_url = img_tag['src'] if img_tag else ""
-            offer_tag = a.select_one(".offer, .promo, .badge-offer")
-            is_offer = bool(offer_tag)
-            if title:
+            image_url = img_tag.get('data-src') or img_tag.get('src') or ""
+
+            # Oferta
+            offer = False
+            if a.select_one(".promotion, .offer-badge, .sale-badge"):
+                offer = True
+
+            if name:
                 products.append({
-                    "name": title.text.strip()[:80],
+                    "name": name,
                     "price": price,
                     "url": a["href"],
                     "image": image_url,
-                    "offer": is_offer,
+                    "offer": offer,
                     "time": datetime.now().isoformat()
                 })
         return products[:15]
@@ -125,61 +122,63 @@ def get_products(url):
 # =============================
 # ⚡ EXECUÇÃO PRINCIPAL
 # =============================
-fallback_counter = 0
-
 for cat in categories:
     print(f"\n[Buscando produtos] Categoria: {cat['category']} | URL: {cat['search_url']}")
     products = get_products(cat["search_url"])
     print(f"Produtos encontrados: {len(products)}")
 
+    sent_any = False
+
     for p in products:
         key = p["name"]
         old_price = history.get(key, p["price"])
-        price_drop = old_price - p["price"]
-        score = price_drop
+        price_diff = old_price - p["price"]
+        score = price_diff
 
-        post_product = p["offer"] or cat["niche"] == "choice" or score > 0
-
-        if post_product:
+        # Condicional: Choice sempre, oferta/promoção, ou potencial de venda
+        if cat["niche"]=="choice" or p["offer"] or price_diff>0:
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])
             cupom = get_coupon(cat["niche"], cat["search_url"])
             cupom_text = f"\n🎫 Use o cupom: {cupom}" if cupom else ""
-            msg = f"{text}\n{p['name']}\n💰 R$ {p['price']}\n{link}{cupom_text}"
+            msg_price = f"💰 R$ {p['price']:.2f}"
+            if price_diff>0:
+                msg_price += f" (↓ R$ {price_diff:.2f})"
+
+            msg = f"{text}\n{p['name']}\n{msg_price}\n{link}{cupom_text}"
+
             try:
                 if p["image"]:
-                    bot.send_photo(chat_id=CHAT_ID, photo=p["image"], caption=msg)
+                    bot.send_photo(CHAT_ID, photo=p["image"], caption=msg)
                 else:
-                    bot.send_message(chat_id=CHAT_ID, text=msg)
+                    bot.send_message(CHAT_ID, msg)
+                sent_any = True
             except Exception as e:
                 print(f"[Erro Telegram] {e}")
+
             ranking.append((score, p))
-        else:
-            fallback_counter += 1
-            print(f"[Ignorado] {p['name']} - Sem promoção e sem queda")
 
         history[key] = p["price"]
 
-# =============================
-# ⚡ FALLBACK PARA POSTAGEM DE PRODUTOS POTENCIAIS (DESCONSIDERANDO CHOICE)
-# =============================
-if fallback_counter >= 1:
-    for cat in categories:
-        if cat["niche"] != "choice":
-            products = get_products(cat["search_url"])
-            for p in products[:1]:  # Apenas 1 fallback
-                text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
-                link = apply_affiliate(p["url"], cat["niche"])
-                cupom = get_coupon(cat["niche"], cat["search_url"])
-                cupom_text = f"\n🎫 Use o cupom: {cupom}" if cupom else ""
-                msg = f"{text}\n{p['name']}\n💰 R$ {p['price']}\n{link}{cupom_text}"
-                try:
-                    if p["image"]:
-                        bot.send_photo(chat_id=CHAT_ID, photo=p["image"], caption=msg)
-                    else:
-                        bot.send_message(chat_id=CHAT_ID, text=msg)
-                except Exception as e:
-                    print(f"[Erro Telegram fallback] {e}")
+    # Fallback: se nenhum produto normal enviado, posta 1 produto
+    fallback_counter += 0 if sent_any or cat["niche"]=="choice" else 1
+    if fallback_counter >= 1:
+        for p in products:
+            if cat["niche"]=="choice":
+                continue
+            text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
+            link = apply_affiliate(p["url"], cat["niche"])
+            msg_price = f"💰 R$ {p['price']:.2f}"
+            msg = f"{text}\n{p['name']}\n{msg_price}\n{link}"
+            try:
+                if p["image"]:
+                    bot.send_photo(CHAT_ID, photo=p["image"], caption=msg)
+                else:
+                    bot.send_message(CHAT_ID, msg)
+            except Exception as e:
+                print(f"[Erro Telegram fallback] {e}")
+            fallback_counter = 0
+            break
 
 # =============================
 # ⚡ RANKING DIÁRIO
@@ -188,7 +187,7 @@ ranking.sort(reverse=True,key=lambda x:x[0])
 if ranking:
     msg = "🏆 TOP OFERTAS DO DIA\n\n"
     for i,(_,p) in enumerate(ranking[:5], 1):
-        msg += f"{i}️⃣ {p['name']} – R$ {p['price']}\n"
+        msg += f"{i}️⃣ {p['name']} – R$ {p['price']:.2f}\n"
     try:
         bot.send_message(CHAT_ID, msg)
     except Exception as e:
@@ -197,5 +196,5 @@ if ranking:
 # =============================
 # ⚡ SALVAR HISTÓRICO
 # =============================
-json.dump(history, open("history.json", "w"))
+json.dump(history, open("history.json","w"))
 print("\n[Histórico salvo]")

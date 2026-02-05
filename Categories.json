@@ -7,10 +7,11 @@
     {"nome": "zattini", "url": "https://www.zattini.com.br/busca?q="}
   ],
   "nichos": [
-    {"id": "esportes", "termos": ["chuteira de campo", "bola de futebol oficial", "tenis de corrida masculino", "camisa de time 2024", "uniforme de basquete", "raquete tenis de mesa"]},
-    {"id": "moda", "termos": ["tenis", "camisa polo masculina", "vestido feminino casual", "roupa infantil conjunto", "calça jeans masculina", "scarpin feminino", "jaqueta de couro"]},
-    {"id": "eletrodomesticos", "termos": ["Smarttv","tv", "air fryer", "liquidificador", "micro-ondas", "geladeira", "maquina de lavar"]},
-    {"id": "eletronicos", "termos": ["fone bluetooth", "smartwatch", "caixa de som", "smartphone", "iphone", "carregador"]},
-    {"id": "choice", "termos": ["shopee choice eletronicos", "oferta relampago", "itens mais vendidos"]}
+    {"id": "esportes", "termos": ["chuteira de campo", "bola de futebol oficial", "tenis de corrida masculino", "camisa de time 2024"]},
+    {"id": "moda", "termos": ["tenis", "camisa polo masculina", "vestido feminino casual", "calça jeans masculina"]},
+    {"id": "eletrodomesticos", "termos": ["Smarttv", "air fryer", "liquidificador", "micro-ondas"]},
+    {"id": "eletronicos", "termos": ["fone bluetooth", "smartwatch", "caixa de som", "smartphone", "iphone"]},
+    {"id": "choice", "termos": ["shopee choice", "itens mais vendidos", "oferta relampago"]},
+    {"id": "fallback", "termos": ["promocao", "ofertas", "mais vendidos"]}
   ]
 }

@@ -39,9 +39,6 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
-          
-          # Tenta adicionar o arquivo independente de ser maiúsculo ou minúsculo
-          git add history.json || git add History.json || echo "Arquivo não encontrado"
-          
-          git commit -m "bot: atualizando histórico [skip ci]" || echo "Sem novos links para salvar"
+          git add History.json
+          git commit -m "bot: atualizando histórico [skip ci]" || echo "Sem novos links"
           git push

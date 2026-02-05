@@ -2,9 +2,8 @@ name: PriceBot 24h – 5x/hora com aleatoriedade
 
 on:
   schedule:
-    # 5x por hora → a cada 12 minutos
-    - cron: '*/12 * * * *'
-  workflow_dispatch: # Permite execução manual a qualquer momento
+    - cron: '*/12 * * * *' # 5x por hora
+  workflow_dispatch:
 
 jobs:
   executar-bot:
@@ -29,5 +28,4 @@ jobs:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         CHAT_ID: ${{ secrets.CHAT_ID }}
       run: |
-        echo "[Execução] Rodando o bot..."
         python bot.py

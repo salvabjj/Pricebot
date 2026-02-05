@@ -6,8 +6,8 @@ import requests
 from bs4 import BeautifulSoup
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
-# Arquivos de configuração
-HISTORY_FILE = "history.json"
+# NOMES DOS FICHEIROS - Devem ser IGUAIS aos do GitHub
+HISTORY_FILE = "History.json"
 AFFILIATES_FILE = "Affiliates.json"
 CATEGORIES_FILE = "Categories.json"
 COPY_FILE = "Copy.json"
@@ -34,22 +34,20 @@ def converter_para_afiliado(url_pura, site_nome, ids):
     return url_pura
 
 def minerar_produtos(site_url, site_nome):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     links_validos = []
     try:
         res = requests.get(site_url, headers=headers, timeout=20)
         soup = BeautifulSoup(res.text, "html.parser")
         for a in soup.find_all('a', href=True):
             href = a['href']
-            # Filtro expandido para capturar mais produtos
-            if any(x in href.lower() for x in ["/p/", "/item/", "/dp/", "produto", "itm", "shopping", "p-"]):
+            if any(x in href.lower() for x in ["/p/", "/item/", "/dp/", "produto", "itm"]):
                 if not href.startswith("http"):
                     if "amazon" in site_nome: href = "https://www.amazon.com.br" + href
                     elif "netshoes" in site_nome: href = "https://www.netshoes.com.br" + href
                     elif "zattini" in site_nome: href = "https://www.zattini.com.br" + href
                 links_validos.append(href)
-    except Exception as e:
-        print(f"⚠️ Erro ao minerar {site_nome}: {e}")
+    except: pass
     return list(set(links_validos))
 
 def main():
@@ -57,6 +55,7 @@ def main():
     chat_id = os.getenv("CHAT_ID")
     bot = Bot(token=token)
     
+    # Carregar ficheiros com os nomes corrigidos
     history = load_json(HISTORY_FILE)
     if not isinstance(history, list): history = []
     
@@ -70,45 +69,29 @@ def main():
     random.shuffle(nichos)
     enviados_total = 0
 
-    print(f"--- Iniciando Rodada (Histórico: {len(history)} links) ---")
-
     for nicho in nichos:
         if enviados_total >= 2: break 
 
         for site in sites:
             termo = random.choice(nicho["termos"])
             url_busca = site["url"] + termo.replace(" ", "+")
-            print(f"🔎 Buscando '{termo}' em {site['nome']}...")
             
             links = minerar_produtos(url_busca, site["nome"])
-            random.shuffle(links) # Embaralha para não pegar sempre o mesmo
-
             for link in links:
                 if link not in history:
                     link_final = converter_para_afiliado(link, site["nome"], afiliados)
-                    
-                    frases = copies.get(nicho["id"], ["🔥 OFERTA IMPERDÍVEL!"])
-                    msg = f"{random.choice(frases)}\n\n📦 *{termo.upper()}*\n\n🚀 Link promocional abaixo:"
+                    frases = copies.get(nicho["id"], ["🔥 OFERTA!"])
+                    msg = f"{random.choice(frases)}\n\n📦 *{termo.upper()}*\n\n🛒 Link: {link_final}"
                     kb = InlineKeyboardMarkup([[InlineKeyboardButton(f"🛒 VER NA {site['nome'].upper()}", url=link_final)]])
                     
                     try:
                         bot.send_message(chat_id=chat_id, text=msg, reply_markup=kb, parse_mode="Markdown")
                         history.append(link)
                         enviados_total += 1
-                        print(f"✅ MENSAGEM ENVIADA: {termo}")
-                        time.sleep(10) # Delay anti-spam
+                        time.sleep(10)
                         break 
-                    except Exception as e:
-                        print(f"❌ ERRO TELEGRAM: {e}")
-                        continue
-                else:
-                    # Link já postado antes
-                    continue
+                    except: continue
 
-    if enviados_total == 0:
-        print("🚨 ATENÇÃO: Nenhum produto novo foi enviado nesta rodada.")
-
-    # Salva o histórico atualizado
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, indent=2)
 

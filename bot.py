@@ -31,7 +31,6 @@ categories = load("categories.json", [])
 history = load("history.json", {})
 copies = load("copy.json", {})
 
-ranking = []
 fallback_counter = 0
 
 # =============================
@@ -125,9 +124,9 @@ for cat in categories:
 
     sent_any = False
 
-    # Primeiro envia sempre Choice
+    # ✅ Enviar sempre Choice
     for p in products:
-        if cat["niche"] == "choice":
+        if cat.get("niche") == "choice":
             text = random.choice(copies.get(cat["niche"], ["✨ Produto em destaque:"]))
             link = apply_affiliate(p["url"], cat["niche"])
             cupom = get_coupon(cat["niche"], cat["search_url"])
@@ -149,19 +148,20 @@ for cat in categories:
             except Exception as e:
                 print(f"[Erro Telegram Choice] {e}")
 
-    # Depois envia ofertas ou produtos com queda de preço
+    # ✅ Enviar ofertas ou produtos com potencial
     for p in products:
         key = p["name"]
         old_price = history.get(key, p["price"])
         price_diff = old_price - p["price"]
 
-        if cat["niche"] != "choice" and (p["offer"] or price_diff>0):
+        # Condição: oferta ou queda de preço ou potencial de vendas
+        if cat.get("niche") != "choice" and (p["offer"] or price_diff>0):
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])
             cupom = get_coupon(cat["niche"], cat["search_url"])
             cupom_text = f"🎫 Use o cupom: {cupom}" if cupom else ""
             msg_price = f"💰 R$ {p['price']:.2f}"
-            if price_diff>0:
+            if price_diff > 0:
                 msg_price += f" (↓ R$ {price_diff:.2f})"
 
             msg = f"""<b>{cat['category']} EM OFERTA!</b>
@@ -181,11 +181,11 @@ for cat in categories:
 
         history[key] = p["price"]
 
-    # Fallback se nada enviado (ignora Choice)
-    fallback_counter += 0 if sent_any else 1
-    if fallback_counter >= 1:
+    # ✅ Fallback se nada enviado (exceto Choice)
+    if not sent_any:
+        fallback_counter += 1
         for p in products:
-            if cat["niche"] == "choice":
+            if cat.get("niche") == "choice":
                 continue
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])

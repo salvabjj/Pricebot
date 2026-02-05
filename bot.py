@@ -1,4 +1,4 @@
-import requests, json, os, random, sys
+import requests, json, os, random
 from bs4 import BeautifulSoup
 import telegram
 from datetime import datetime
@@ -25,7 +25,7 @@ affiliates = load("affiliates.json", {})
 ranking = []
 
 # =============================
-# ⚡ FUNÇÃO DE PARSE DE PREÇO POR SITE
+# ⚡ PARSE DE PREÇO POR SITE
 # =============================
 def parse_price(a, site_url):
     try:
@@ -91,7 +91,7 @@ def get_coupon(niche, site_url):
             all_coupons = cupons + cupons_file
             return random.choice(all_coupons) if all_coupons else ""
     except:
-        return ""  # Retorna vazio se não houver
+        return ""
 
 # =============================
 # ⚡ PEGAR PRODUTOS
@@ -106,9 +106,9 @@ def get_products(url):
             title = a.select_one("h2, span.a-text-normal")
             img_tag = a.select_one("img")
             image_url = img_tag['src'] if img_tag else ""
-            offer_tag = a.select_one(".offer, .promo, .badge-offer")  # Marcação de promoção
+            offer_tag = a.select_one(".offer, .promo, .badge-offer")
             is_offer = bool(offer_tag)
-            if price and title:
+            if title:
                 products.append({
                     "name": title.text.strip()[:80],
                     "price": price,
@@ -125,7 +125,7 @@ def get_products(url):
 # =============================
 # ⚡ EXECUÇÃO PRINCIPAL
 # =============================
-fallback_counter = 0  # Contador para fallback se não encontrar produtos
+fallback_counter = 0
 
 for cat in categories:
     print(f"\n[Buscando produtos] Categoria: {cat['category']} | URL: {cat['search_url']}")
@@ -158,17 +158,16 @@ for cat in categories:
             fallback_counter += 1
             print(f"[Ignorado] {p['name']} - Sem promoção e sem queda")
 
-        # Atualiza histórico
         history[key] = p["price"]
 
 # =============================
-# ⚡ Fallback: postar se não houver produtos suficientes (desconsiderando Choice)
+# ⚡ FALLBACK PARA POSTAGEM DE PRODUTOS POTENCIAIS (DESCONSIDERANDO CHOICE)
 # =============================
 if fallback_counter >= 1:
     for cat in categories:
         if cat["niche"] != "choice":
             products = get_products(cat["search_url"])
-            for p in products[:2]:  # Posta os dois primeiros como fallback
+            for p in products[:1]:  # Apenas 1 fallback
                 text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
                 link = apply_affiliate(p["url"], cat["niche"])
                 cupom = get_coupon(cat["niche"], cat["search_url"])

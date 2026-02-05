@@ -1,9 +1,9 @@
-name: PriceBot 24h – 5x/hora com aleatoriedade
+name: PriceBot 24h – 5x/hora
 
 on:
   schedule:
     - cron: '*/12 * * * *'  # roda a cada 12 minutos → 5x/hora
-  workflow_dispatch:          # permite executar manualmente
+  workflow_dispatch:
 
 jobs:
   executar-bot:

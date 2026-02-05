@@ -1,9 +1,9 @@
-name: PriceBot 24h – 6x/hora com aleatoriedade
+name: PriceBot 24h – 10x/hora com aleatoriedade
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # executa a cada 10 minutos → 6x/hora
-  workflow_dispatch:  # permite executar manualmente
+    - cron: '*/6 * * * *'  # executa a cada 6 minutos → 10x/hora
+  workflow_dispatch:  # permite execução manual
 
 jobs:
   executar-bot:
@@ -28,7 +28,7 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: |
-          # Delay aleatório entre 0 e 240 segundos (4 minutos) para dispersar execuções
+          # Delay aleatório entre 0 e 240 segundos (0 a 4 minutos) para dispersar execuções
           DELAY=$((RANDOM % 240))
           echo "Aguardando $DELAY segundos antes de executar..."
           sleep $DELAY

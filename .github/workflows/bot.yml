@@ -2,7 +2,7 @@ name: PriceBot 24h – 5x/hora
 
 on:
   schedule:
-    # Cron a cada 12 minutos → 5x/hora
+    # Executa a cada 12 minutos → 5x/hora
     - cron: '*/12 * * * *'
   workflow_dispatch: # permite execução manual
 
@@ -14,10 +14,10 @@ jobs:
     - name: Checkout do repositório
       uses: actions/checkout@v3
 
-    - name: Configurar Python
+    - name: Configurar Python 3.11
       uses: actions/setup-python@v4
       with:
-        python-version: '3.12'
+        python-version: '3.11'
 
     - name: Instalar dependências
       run: |
@@ -29,8 +29,8 @@ jobs:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         CHAT_ID: ${{ secrets.CHAT_ID }}
       run: |
-        # Espera aleatória de 0 a 4 minutos antes de rodar
-        echo "[Execução] Aguardando tempo aleatório para dispersar execuções..."
+        # Espera aleatória de 0 a 4 minutos para dispersar execuções
+        echo "[Execução] Aguardando tempo aleatório..."
         WAIT_TIME=$(( RANDOM % 240 ))
         echo "Esperando $WAIT_TIME segundos..."
         sleep $WAIT_TIME

@@ -6,7 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
-# Arquivos
+# Nomes dos arquivos (Devem estar na mesma pasta que este script)
 HISTORY_FILE = "history.json"
 AFFILIATES_FILE = "Affiliates.json"
 CATEGORIES_FILE = "Categories.json"
@@ -21,17 +21,17 @@ def load_json(file):
 
 def converter_para_afiliado(url_pura, site_nome, ids):
     try:
-        site_nome_limpo = site_nome.lower()
-        if "amazon" in site_nome_limpo:
+        site = site_nome.lower()
+        if "amazon" in site:
             tag = ids.get("amazon", "salvablessjj-20")
             return f"{url_pura}&tag={tag}" if "?" in url_pura else f"{url_pura}?tag={tag}"
-        elif "shopee" in site_nome_limpo:
-            shopee_id = ids.get("shopee", "18308930971")
-            return f"https://shopee.com.br/universal-link/{shopee_id}?url={url_pura}"
-        elif "mercadolivre" in site_nome_limpo:
+        elif "shopee" in site:
+            s_id = ids.get("shopee", "18308930971")
+            return f"https://shopee.com.br/universal-link/{s_id}?url={url_pura}"
+        elif "mercadolivre" in site:
             ml_id = ids.get("mercadolivre", "1561730990")
             return f"{url_pura}#id={ml_id}"
-        elif "netshoes" in site_nome_limpo or "zattini" in site_nome_limpo:
+        elif "netshoes" in site or "zattini" in site:
             camp = ids.get("netshoes", "rWODdSNWJGM")
             return f"{url_pura}?campaign={camp}"
     except: return url_pura
@@ -45,7 +45,6 @@ def minerar_produtos(site_url, site_nome):
         soup = BeautifulSoup(res.text, "html.parser")
         for a in soup.find_all('a', href=True):
             href = a['href']
-            # Filtro de links de produtos para Netshoes/Zattini tbm
             if any(x in href for x in ["/p/", "/item/", "/dp/", "produto"]):
                 if not href.startswith("http"):
                     if "amazon" in site_nome: href = "https://www.amazon.com.br" + href
@@ -74,15 +73,14 @@ def main():
     enviados_total = 0
 
     for nicho in nichos:
-        if enviados_total >= 2: break 
+        if enviados_total >= 2: break # Garante 2 envios por execução
 
         for site in sites:
             termo = random.choice(nicho["termos"])
             url_busca = site["url"] + termo.replace(" ", "+")
-            
             print(f"Buscando {termo} em {site['nome']}...")
-            links = minerar_produtos(url_busca, site["nome"])
             
+            links = minerar_produtos(url_busca, site["nome"])
             for link in links:
                 if link not in history:
                     link_final = converter_para_afiliado(link, site["nome"], afiliados)

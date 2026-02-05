@@ -136,15 +136,27 @@ for cat in categories:
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])
             cupom = get_coupon(cat["niche"], cat["search_url"])
-            cupom_text = f"\n🎫 Use o cupom: {cupom}" if cupom else ""
+            cupom_text = f"🎫 Use o cupom: {cupom}" if cupom else ""
             msg_price = f"💰 R$ {p['price']:.2f}"
             if price_diff>0:
                 msg_price += f" (↓ R$ {price_diff:.2f})"
 
-            msg = f"{text}\n{p['name']}\n{msg_price}\n{link}{cupom_text}"
+            # Mensagem segura HTML
+            msg = f"""<b>{cat['category']} EM OFERTA!</b>
+{text}
+{p['name']}
+{msg_price}
+<a href="{p['image']}">📷 Imagem</a>
+<a href="{link}">🔗 Link de Compra</a>
+{cupom_text}"""
 
             try:
-                bot.send_photo(CHAT_ID, photo=p["image"], caption=msg)
+                bot.send_message(
+                    chat_id=CHAT_ID,
+                    text=msg,
+                    parse_mode="HTML",
+                    disable_web_page_preview=False
+                )
                 sent_any = True
             except Exception as e:
                 print(f"[Erro Telegram] {e}")
@@ -162,9 +174,14 @@ for cat in categories:
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])
             msg_price = f"💰 R$ {p['price']:.2f}"
-            msg = f"{text}\n{p['name']}\n{msg_price}\n{link}"
+            msg = f"<b>{cat['category']} EM OFERTA!</b>\n{text}\n{p['name']}\n{msg_price}\n<a href='{link}'>🔗 Link de Compra</a>"
             try:
-                bot.send_photo(CHAT_ID, photo=p["image"], caption=msg)
+                bot.send_message(
+                    chat_id=CHAT_ID,
+                    text=msg,
+                    parse_mode="HTML",
+                    disable_web_page_preview=False
+                )
             except Exception as e:
                 print(f"[Erro Telegram fallback] {e}")
             fallback_counter = 0

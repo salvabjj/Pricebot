@@ -1,9 +1,9 @@
-name: PriceBot 24h – 10x/hora com aleatoriedade
+name: PriceBot 24h – 10x por hora
 
 on:
   schedule:
-    - cron: '*/6 * * * *'  # executa a cada 6 minutos → 10x/hora
-  workflow_dispatch:  # permite execução manual
+    - cron: '*/6 * * * *'
+  workflow_dispatch:
 
 jobs:
   executar-bot:
@@ -23,14 +23,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 python-telegram-bot==13.15
 
+      - name: Delay aleatório
+        run: |
+          python - << 'EOF'
+          import time, random
+          delay = random.randint(0, 240)
+          print(f"Aguardando {delay} segundos...")
+          time.sleep(delay)
+          EOF
+
       - name: Executar bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: |
-          # Delay aleatório entre 0 e 240 segundos (0 a 4 minutos) para dispersar execuções
-          DELAY=$((RANDOM % 240))
-          echo "Aguardando $DELAY segundos antes de executar..."
-          sleep $DELAY
-
-          python bot.py
+        run: python bot.py

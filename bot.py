@@ -85,22 +85,18 @@ def get_products(url):
         soup = BeautifulSoup(r.text, "html.parser")
         products = []
         for a in soup.find_all("a", href=True):
-            # Nome
             title_tag = a.select_one("h2, span.a-text-normal")
             name = title_tag.text.strip()[:80] if title_tag else None
 
-            # Preço
             price_tag = a.select_one(".andes-money-amount__fraction, span.a-offscreen")
             try:
                 price = float(price_tag.text.replace("R$", "").replace(".", "").replace(",", ".")) if price_tag else 0
             except:
                 price = 0
 
-            # Imagem
             img_tag = a.select_one("img")
             image_url = img_tag.get('data-src') or img_tag.get('src') or "https://via.placeholder.com/300"
 
-            # Oferta / promoção
             offer = False
             if a.select_one(".promotion, .offer-badge, .sale-badge"):
                 offer = True
@@ -135,7 +131,7 @@ for cat in categories:
         price_diff = old_price - p["price"]
         score = price_diff
 
-        # Condicional: Choice sempre, oferta/promoção, ou potencial de venda
+        # Posta se Choice, promoção ou potencial de venda
         if cat["niche"]=="choice" or p["offer"] or price_diff>0:
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])
@@ -157,7 +153,7 @@ for cat in categories:
 
         history[key] = p["price"]
 
-    # Fallback: se nenhum produto normal enviado, posta 1 produto
+    # Fallback: se nenhum produto enviado, posta 1 produto
     fallback_counter += 0 if sent_any or cat["niche"]=="choice" else 1
     if fallback_counter >= 1:
         for p in products:

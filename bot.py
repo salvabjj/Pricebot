@@ -2,6 +2,7 @@ import requests, json, os, random
 from bs4 import BeautifulSoup
 import telegram
 from datetime import datetime
+import re
 
 # =============================
 # ⚡ CONFIGURAÇÃO TELEGRAM
@@ -98,7 +99,7 @@ def get_products(url):
 
             # Imagem
             img_tag = a.select_one("img")
-            image_url = img_tag.get('data-src') or img_tag.get('src') or ""
+            image_url = img_tag.get('data-src') or img_tag.get('src') or "https://via.placeholder.com/300"
 
             # Oferta
             offer = False
@@ -148,10 +149,7 @@ for cat in categories:
             msg = f"{text}\n{p['name']}\n{msg_price}\n{link}{cupom_text}"
 
             try:
-                if p["image"]:
-                    bot.send_photo(CHAT_ID, photo=p["image"], caption=msg)
-                else:
-                    bot.send_message(CHAT_ID, msg)
+                bot.send_photo(CHAT_ID, photo=p["image"], caption=msg)
                 sent_any = True
             except Exception as e:
                 print(f"[Erro Telegram] {e}")
@@ -171,10 +169,7 @@ for cat in categories:
             msg_price = f"💰 R$ {p['price']:.2f}"
             msg = f"{text}\n{p['name']}\n{msg_price}\n{link}"
             try:
-                if p["image"]:
-                    bot.send_photo(CHAT_ID, photo=p["image"], caption=msg)
-                else:
-                    bot.send_message(CHAT_ID, msg)
+                bot.send_photo(CHAT_ID, photo=p["image"], caption=msg)
             except Exception as e:
                 print(f"[Erro Telegram fallback] {e}")
             fallback_counter = 0

@@ -1,4 +1,4 @@
-import requests, json, os, random, sys
+import requests, json, os, random
 from bs4 import BeautifulSoup
 import telegram
 from datetime import datetime
@@ -25,7 +25,7 @@ affiliates = load("affiliates.json", {})
 ranking = []
 
 # =============================
-# ⚡ LINK AFILIADO
+# ⚡ APLICAR LINK AFILIADO
 # =============================
 def apply_affiliate(url, niche):
     if "amazon" in url: return affiliates.get("amazon", url)
@@ -35,40 +35,7 @@ def apply_affiliate(url, niche):
     return url
 
 # =============================
-# ⚡ PEGAR PRODUTOS
-# =============================
-def get_products(url):
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=20)
-        soup = BeautifulSoup(r.text, "html.parser")
-        products = []
-        for a in soup.find_all("a", href=True):
-            price = a.select_one(".andes-money-amount__fraction, span.a-offscreen")
-            title = a.select_one("h2, span.a-text-normal")
-            promo_tag = a.select_one(".promo, .badge-promotion")
-            offer_tag = a.select_one(".offer, .badge-offer")
-            best_seller_tag = a.select_one(".best-seller, .badge-bestseller")
-            if price and title:
-                try:
-                    value = int(price.text.replace(".", "").replace(",", ""))
-                except:
-                    continue
-                products.append({
-                    "name": title.text.strip()[:80],
-                    "price": value,
-                    "url": a["href"],
-                    "time": datetime.now().isoformat(),
-                    "promotion": bool(promo_tag),
-                    "offer": bool(offer_tag),
-                    "best_seller": bool(best_seller_tag)
-                })
-        return products[:15]
-    except Exception as e:
-        print(f"[Erro get_products] {url} - {e}")
-        return []
-
-# =============================
-# ⚡ BUSCA CUPOM (automatizado)
+# ⚡ BUSCA AUTOMÁTICA DE CUPONS
 # =============================
 def fetch_coupons(niche, site_url):
     cupons = []
@@ -96,32 +63,58 @@ def get_coupon(niche, site_url):
         return ""  # Retorna vazio se não houver
 
 # =============================
+# ⚡ PEGAR PRODUTOS
+# =============================
+def get_products(url):
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=20)
+        soup = BeautifulSoup(r.text, "html.parser")
+        products = []
+        for a in soup.find_all("a", href=True):
+            price = a.select_one(".andes-money-amount__fraction, span.a-offscreen")
+            title = a.select_one("h2, span.a-text-normal")
+            promo = a.select_one(".promotion-badge, .offer-label")
+            if price and title:
+                try:
+                    value = int(price.text.replace(".", "").replace(",", ""))
+                except:
+                    continue
+                products.append({
+                    "name": title.text.strip()[:80],
+                    "price": value,
+                    "url": a["href"],
+                    "promotion": bool(promo),
+                    "time": datetime.now().isoformat()
+                })
+        return products[:15]
+    except Exception as e:
+        print(f"[Erro get_products] {url} - {e}")
+        return []
+
+# =============================
 # ⚡ EXECUÇÃO PRINCIPAL
 # =============================
 for cat in categories:
     print(f"\n[Buscando produtos] Categoria: {cat['category']} | URL: {cat['search_url']}")
     products = get_products(cat["search_url"])
-    print(f"[Encontrados] {len(products)} produtos na categoria {cat['category']}")
+    print(f"Produtos encontrados: {len(products)}")
 
     for p in products:
         key = p["name"]
         old_price = history.get(key, p["price"])
+        discount = round((old_price - p["price"]) / old_price * 100, 1) if old_price else 0
         price_drop = old_price - p["price"]
-        score = price_drop  # pontuação baseada na queda de preço
+        score = discount*2 + price_drop
 
-        # ⚡ Condicional de postagem:
-        # 1) Queda de preço
-        # 2) Promoção
-        # 3) Oferta
-        # 4) Produto com bom histórico de vendas (best_seller)
-        if price_drop > 0 or p.get("promotion", False) or p.get("offer", False) or p.get("best_seller", False):
+        # Condicional: promo, oferta, queda ou potencial de venda
+        if p["promotion"] or price_drop > 0 or discount >= 5:
             text = random.choice(copies.get(cat["niche"], ["🔥 OFERTA!\n👉 Veja:"]))
             link = apply_affiliate(p["url"], cat["niche"])
             cupom = get_coupon(cat["niche"], cat["search_url"])
             cupom_text = f"\n🎫 Use o cupom: {cupom}" if cupom else ""
-            msg = f"{text}\n{p['name']}\n💰 R$ {p['price']}\n{link}{cupom_text}"
 
-            print(f"[Enviando Telegram] {msg}")
+            msg = f"{text}\n{p['name']}\n💰 R$ {p['price']} (-{discount}%)\n{link}{cupom_text}"
+            print(f"[Enviando] {msg}")
             try:
                 bot.send_message(CHAT_ID, msg)
             except Exception as e:
@@ -129,9 +122,8 @@ for cat in categories:
 
             ranking.append((score, p))
         else:
-            print(f"[Ignorado] {p['name']} | Queda: {price_drop} | Promo: {p.get('promotion', False)} | Offer: {p.get('offer', False)} | BestSeller: {p.get('best_seller', False)}")
+            print(f"[Ignorado] {p['name']} - Desconto: {discount}% | Queda: {price_drop} | Promo: {p['promotion']}")
 
-        # Atualiza histórico
         history[key] = p["price"]
 
 # =============================

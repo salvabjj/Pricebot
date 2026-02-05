@@ -1,197 +1,198 @@
 import os
+import json
+import time
+import random
 import requests
 from bs4 import BeautifulSoup
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot, ParseMode
 
-# ===============================
-# CONFIGURAÇÕES TELEGRAM
-# ===============================
-TOKEN = os.getenv("TELEGRAM_TOKEN")
+# ==========================
+# CONFIGURAÇÕES GERAIS
+# ==========================
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-bot = Bot(token=TOKEN)
+HISTORY_FILE = "history.json"
+MIN_PRODUTOS_POR_EXECUCAO = 3
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
-# ===============================
-# LINKS POR CATEGORIA (EXEMPLO)
-# depois você pode externalizar
-# ===============================
-CATEGORIAS = {
-    "Eletrodomésticos": [
-        "https://amzn.to/46iUEb6",
-        "https://s.shopee.com.br/8KjpTzVMDC",
-        "https://mercadolivre.com/sec/2TupDRd"
+# ==========================
+# LINKS BASE (AFILIADOS)
+# ==========================
+AMAZON_TAG = "salvablessjj-20"
+
+SITES = {
+    "Amazon": [
+        "https://www.amazon.com.br/s?k=tenis+esportivo",
+        "https://www.amazon.com.br/s?k=suplemento",
+        "https://www.amazon.com.br/s?k=eletronicos"
     ],
-    "Moda Masculina": [
-        "https://mercadolivre.com/sec/115emZK",
-        "https://www.netshoes.com.br/p/tenis-couro-adidas-grand-court-alpha-masculino-marrom-FB9-8951-138"
+    "Shopee": [
+        "https://shopee.com.br/search?keyword=tenis",
+        "https://shopee.com.br/search?keyword=camisa+esportiva"
+    ],
+    "Mercado Livre": [
+        "https://lista.mercadolivre.com.br/tenis-esportivo",
+        "https://lista.mercadolivre.com.br/suplementos"
+    ],
+    "Netshoes": [
+        "https://www.netshoes.com.br/tenis",
+        "https://www.netshoes.com.br/camisas"
     ]
 }
 
-# ===============================
+# ==========================
+# HISTÓRICO
+# ==========================
+def carregar_historico():
+    if not os.path.exists(HISTORY_FILE):
+        return []
+    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def salvar_historico(history):
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+# ==========================
 # UTILIDADES
-# ===============================
-def resolver_link(url):
-    try:
-        r = requests.get(url, allow_redirects=True, timeout=10)
-        return r.url
-    except:
-        return url
+# ==========================
+def normalizar_link_amazon(link):
+    if "/dp/" in link:
+        produto = link.split("/dp/")[1].split("/")[0]
+        return f"https://www.amazon.com.br/dp/{produto}?tag={AMAZON_TAG}"
+    return link
 
+def ja_enviado(link, history):
+    return link in history
 
-# ===============================
-# AMAZON
-# ===============================
-def ler_amazon(url):
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
+# ==========================
+# SCRAPERS
+# ==========================
+def buscar_amazon(url):
+    produtos = []
+    r = requests.get(url, headers=HEADERS, timeout=15)
+    soup = BeautifulSoup(r.text, "html.parser")
 
-        titulo = soup.select_one("#productTitle")
-        preco = soup.select_one("#priceblock_ourprice, #priceblock_dealprice")
-        imagem = soup.select_one("#imgTagWrapperId img")
+    for item in soup.select("div[data-component-type='s-search-result']"):
+        try:
+            link = "https://www.amazon.com.br" + item.h2.a["href"]
+            link = normalizar_link_amazon(link)
 
-        return {
-            "nome": titulo.get_text(strip=True) if titulo else None,
-            "preco": preco.get_text(strip=True) if preco else None,
-            "imagem": imagem["src"] if imagem else None
-        }
-    except:
-        return None
+            titulo = item.h2.text.strip()
+            img = item.img["src"] if item.img else None
 
+            produtos.append({
+                "site": "Amazon",
+                "titulo": titulo,
+                "link": link,
+                "imagem": img
+            })
+        except:
+            continue
 
-# ===============================
-# SHOPEE
-# ===============================
-def ler_shopee(url):
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
+    return produtos
 
-        titulo = soup.find("title")
-        imagem = soup.find("meta", property="og:image")
+def buscar_simples(url, site_nome):
+    produtos = []
+    r = requests.get(url, headers=HEADERS, timeout=15)
+    soup = BeautifulSoup(r.text, "html.parser")
 
-        return {
-            "nome": titulo.text.strip() if titulo else None,
-            "preco": None,
-            "imagem": imagem["content"] if imagem else None
-        }
-    except:
-        return None
+    for a in soup.find_all("a", href=True):
+        link = a["href"]
+        if link.startswith("/"):
+            continue
+        if site_nome.lower() not in link.lower():
+            continue
 
+        produtos.append({
+            "site": site_nome,
+            "titulo": a.text.strip()[:80],
+            "link": link,
+            "imagem": None
+        })
 
-# ===============================
-# MERCADO LIVRE
-# ===============================
-def ler_mercadolivre(url):
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
+    return produtos
 
-        titulo = soup.find("h1")
-        preco = soup.select_one(".andes-money-amount__fraction")
-        imagem = soup.find("meta", property="og:image")
+# ==========================
+# COLETAR PRODUTOS
+# ==========================
+def coletar_produtos():
+    todos = []
 
-        return {
-            "nome": titulo.text.strip() if titulo else None,
-            "preco": f"R$ {preco.text}" if preco else None,
-            "imagem": imagem["content"] if imagem else None
-        }
-    except:
-        return None
+    for site, urls in SITES.items():
+        for url in urls:
+            try:
+                if site == "Amazon":
+                    todos.extend(buscar_amazon(url))
+                else:
+                    todos.extend(buscar_simples(url, site))
+                time.sleep(random.uniform(1, 2))
+            except Exception as e:
+                print(f"Erro em {site}: {e}")
 
+    return todos
 
-# ===============================
-# NETSHOES
-# ===============================
-def ler_netshoes(url):
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
-
-        titulo = soup.find("h1")
-        imagem = soup.find("meta", property="og:image")
-
-        return {
-            "nome": titulo.text.strip() if titulo else None,
-            "preco": None,
-            "imagem": imagem["content"] if imagem else None
-        }
-    except:
-        return None
-
-
-# ===============================
-# IDENTIFICAR LOJA
-# ===============================
-def extrair_dados(url):
-    url_final = resolver_link(url)
-
-    if "amazon" in url_final:
-        return ler_amazon(url_final), url_final
-    if "shopee" in url_final:
-        return ler_shopee(url_final), url_final
-    if "mercadolivre" in url_final:
-        return ler_mercadolivre(url_final), url_final
-    if "netshoes" in url_final:
-        return ler_netshoes(url_final), url_final
-
-    return None, url_final
-
-
-# ===============================
+# ==========================
 # ENVIO TELEGRAM
-# ===============================
-def enviar_produto(categoria, dados, link):
-    nome = dados.get("nome") or "Produto em oferta"
-    preco = dados.get("preco") or ""
-    imagem = dados.get("imagem")
+# ==========================
+def enviar_produto(bot, produto):
+    texto = (
+        f"🔥 *OFERTA IMPERDÍVEL*\n\n"
+        f"🛍️ *{produto['titulo']}*\n"
+        f"🌐 {produto['site']}\n\n"
+        f"👉 [COMPRAR AGORA]({produto['link']})"
+    )
 
-    texto = f"🔥 *{categoria}*\n\n*{nome}*\n{preco}"
-
-    teclado = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🛒 Ver oferta", url=link)]
-    ])
-
-    if imagem:
+    if produto["imagem"]:
         bot.send_photo(
             chat_id=CHAT_ID,
-            photo=imagem,
+            photo=produto["imagem"],
             caption=texto,
-            parse_mode="Markdown",
-            reply_markup=teclado
+            parse_mode=ParseMode.MARKDOWN
         )
     else:
         bot.send_message(
             chat_id=CHAT_ID,
             text=texto,
-            parse_mode="Markdown",
-            reply_markup=teclado
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=False
         )
 
-
-# ===============================
-# EXECUÇÃO PRINCIPAL
-# ===============================
+# ==========================
+# MAIN
+# ==========================
 def main():
+    bot = Bot(token=TELEGRAM_TOKEN)
+    history = carregar_historico()
+
+    produtos = coletar_produtos()
+    random.shuffle(produtos)
+
     enviados = 0
 
-    for categoria, links in CATEGORIAS.items():
-        for link in links:
-            dados, link_final = extrair_dados(link)
-            if dados and dados.get("nome"):
-                enviar_produto(categoria, dados, link_final)
-                enviados += 1
+    for produto in produtos:
+        if enviados >= MIN_PRODUTOS_POR_EXECUCAO:
+            break
+
+        if ja_enviado(produto["link"], history):
+            continue
+
+        enviar_produto(bot, produto)
+        history.append(produto["link"])
+        enviados += 1
+        time.sleep(random.uniform(2, 4))
+
+    salvar_historico(history)
 
     if enviados == 0:
         bot.send_message(
             chat_id=CHAT_ID,
-            text="⚠️ Nenhuma oferta encontrada nesta execução."
+            text="⚠️ Nenhuma oferta nova encontrada nesta execução."
         )
-
 
 if __name__ == "__main__":
     main()

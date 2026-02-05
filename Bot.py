@@ -6,11 +6,11 @@ import requests
 from bs4 import BeautifulSoup
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
-# NOMES DOS FICHEIROS - Devem ser IGUAIS aos do GitHub
-HISTORY_FILE = "History.json"
-AFFILIATES_FILE = "Affiliates.json"
-CATEGORIES_FILE = "Categories.json"
-COPY_FILE = "Copy.json"
+# Nomes dos arquivos (ajustado para minúsculo conforme seu padrão)
+HISTORY_FILE = "history.json"
+AFFILIATES_FILE = "affiliates.json"
+CATEGORIES_FILE = "categories.json"
+COPY_FILE = "copy.json"
 
 def load_json(file):
     if os.path.exists(file):
@@ -41,11 +41,10 @@ def minerar_produtos(site_url, site_nome):
         soup = BeautifulSoup(res.text, "html.parser")
         for a in soup.find_all('a', href=True):
             href = a['href']
-            if any(x in href.lower() for x in ["/p/", "/item/", "/dp/", "produto", "itm"]):
+            if any(x in href.lower() for x in ["/p/", "/item/", "/dp/", "produto"]):
                 if not href.startswith("http"):
                     if "amazon" in site_nome: href = "https://www.amazon.com.br" + href
                     elif "netshoes" in site_nome: href = "https://www.netshoes.com.br" + href
-                    elif "zattini" in site_nome: href = "https://www.zattini.com.br" + href
                 links_validos.append(href)
     except: pass
     return list(set(links_validos))
@@ -55,7 +54,6 @@ def main():
     chat_id = os.getenv("CHAT_ID")
     bot = Bot(token=token)
     
-    # Carregar ficheiros com os nomes corrigidos
     history = load_json(HISTORY_FILE)
     if not isinstance(history, list): history = []
     
@@ -73,6 +71,10 @@ def main():
         if enviados_total >= 2: break 
 
         for site in sites:
+            # Se o site for Netshoes, não vamos usar termos de "Shopee Choice"
+            if "shopee" not in site["nome"] and nicho["id"] == "choice":
+                continue
+
             termo = random.choice(nicho["termos"])
             url_busca = site["url"] + termo.replace(" ", "+")
             
@@ -80,9 +82,15 @@ def main():
             for link in links:
                 if link not in history:
                     link_final = converter_para_afiliado(link, site["nome"], afiliados)
-                    frases = copies.get(nicho["id"], ["🔥 OFERTA!"])
-                    msg = f"{random.choice(frases)}\n\n📦 *{termo.upper()}*\n\n🛒 Link: {link_final}"
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(f"🛒 VER NA {site['nome'].upper()}", url=link_final)]])
+                    
+                    # CORREÇÃO DA MENSAGEM:
+                    frases = copies.get(nicho["id"], ["🔥 OFERTA IMPERDÍVEL!"])
+                    prefixo = random.choice(frases)
+                    
+                    # Monta a mensagem final sem misturar nomes de lojas
+                    msg = f"{prefixo}\n\n📦 *{termo.upper()}*\n\n🛒 Confira na {site['nome'].upper()}!"
+                    
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(f"🛒 COMPRAR NA {site['nome'].upper()}", url=link_final)]])
                     
                     try:
                         bot.send_message(chat_id=chat_id, text=msg, reply_markup=kb, parse_mode="Markdown")

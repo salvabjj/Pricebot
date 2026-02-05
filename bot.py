@@ -25,6 +25,8 @@ AFFILIATES = {
     "amazon": "salvablessjj-20"
 }
 
+POSTS_POR_EXECUCAO = 3
+
 # =============================
 # UTILIDADES JSON
 # =============================
@@ -51,7 +53,7 @@ def apply_affiliate(url):
     return url
 
 # =============================
-# SCRAPER AMAZON (CORRIGIDO)
+# SCRAPER AMAZON
 # =============================
 def get_products(search_url):
     products = []
@@ -95,7 +97,7 @@ def get_products(search_url):
                 "time": datetime.now().isoformat()
             })
 
-        return products[:10]
+        return products[:20]
 
     except Exception as e:
         print("[ERRO SCRAPER]", e)
@@ -104,67 +106,60 @@ def get_products(search_url):
 # =============================
 # EXECUÇÃO PRINCIPAL
 # =============================
-total_enviados = 0
 todos_produtos = []
+produtos_prioritarios = []
 
 for cat in categories:
-    print(f"\n[Categoria] {cat['category']}")
-    produtos = get_products(cat["search_url"])
-    print(f"Encontrados: {len(produtos)}")
+    print(f"[Categoria] {cat['category']}")
+    encontrados = get_products(cat["search_url"])
+    print(f"Encontrados: {len(encontrados)}")
 
-    todos_produtos.extend(produtos)
+    todos_produtos.extend(encontrados)
 
-    for p in produtos:
+    for p in encontrados:
         nome = p["name"]
         preco_atual = p["price"]
         preco_antigo = history.get(nome)
 
-        postar = False
+        # Produto novo OU preço mudou
+        if nome not in history or (preco_antigo and preco_atual != preco_antigo):
+            produtos_prioritarios.append(p)
 
-        # Se tiver histórico e preço mudou
-        if preco_antigo and preco_atual > 0 and preco_atual != preco_antigo:
-            postar = True
+# Remove duplicados
+def unique_by_name(lista):
+    vistos = set()
+    resultado = []
+    for p in lista:
+        if p["name"] not in vistos:
+            vistos.add(p["name"])
+            resultado.append(p)
+    return resultado
 
-        # Se não tiver histórico (produto novo)
-        if nome not in history:
-            postar = True
+produtos_prioritarios = unique_by_name(produtos_prioritarios)
+todos_produtos = unique_by_name(todos_produtos)
 
-        if postar:
-            link = apply_affiliate(p["url"])
-            preco_txt = f"R$ {preco_atual:.2f}" if preco_atual > 0 else "Consulte o preço"
+# Seleção final
+selecionados = produtos_prioritarios[:POSTS_POR_EXECUCAO]
 
-            msg = (
-                f"🔥 OFERTA ENCONTRADA!\n\n"
-                f"{nome}\n"
-                f"💰 {preco_txt}\n"
-                f"🔗 Comprar agora:\n{link}"
-            )
-
-            try:
-                bot.send_message(chat_id=CHAT_ID, text=msg)
-                total_enviados += 1
-                print("[Enviado]", nome)
-            except Exception as e:
-                print("[Erro Telegram]", e)
-
-            history[nome] = preco_atual
-
-            if total_enviados >= 1:
-                break
-
-    if total_enviados >= 1:
-        break
+if len(selecionados) < POSTS_POR_EXECUCAO:
+    restantes = POSTS_POR_EXECUCAO - len(selecionados)
+    aleatorios = random.sample(
+        [p for p in todos_produtos if p not in selecionados],
+        k=min(restantes, len(todos_produtos))
+    )
+    selecionados.extend(aleatorios)
 
 # =============================
-# FALLBACK – SEMPRE ENVIA 1
+# ENVIO GARANTIDO (3)
 # =============================
-if total_enviados == 0 and todos_produtos:
-    p = random.choice(todos_produtos)
+enviados = 0
+
+for p in selecionados:
     link = apply_affiliate(p["url"])
     preco_txt = f"R$ {p['price']:.2f}" if p["price"] > 0 else "Consulte o preço"
 
     msg = (
-        f"✨ DESTAQUE DO DIA!\n\n"
+        f"🔥 OFERTA EM DESTAQUE!\n\n"
         f"{p['name']}\n"
         f"💰 {preco_txt}\n"
         f"🔗 Comprar agora:\n{link}"
@@ -172,12 +167,16 @@ if total_enviados == 0 and todos_produtos:
 
     try:
         bot.send_message(chat_id=CHAT_ID, text=msg)
-        print("[Fallback enviado]")
+        enviados += 1
+        print("[Enviado]", p["name"])
     except Exception as e:
-        print("[Erro Telegram fallback]", e)
+        print("[Erro Telegram]", e)
+
+    history[p["name"]] = p["price"]
+
+print(f"\n[OK] Total enviado: {enviados}")
 
 # =============================
 # SALVAR HISTÓRICO
 # =============================
 save_json("history.json", history)
-print("\n[OK] Execução finalizada")

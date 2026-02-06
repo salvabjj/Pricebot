@@ -15,28 +15,47 @@ def load_json(file):
             except: return {}
     return {}
 
-def extrair_detalhes(url):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+def def extrair_detalhes(url):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+    }
     try:
-        res = requests.get(url, headers=headers, timeout=15)
+        res = requests.get(url, headers=headers, timeout=20)
         soup = BeautifulSoup(res.text, "html.parser")
-        img = soup.find("meta", property="og:image")
-        img_url = img["content"] if img else None
-        title = soup.find("meta", property="og:title")
-        nome = title["content"].split("|")[0].strip() if title else "Produto em Oferta"
         
+        # 1. Busca Imagem (Tentativa em 3 níveis)
+        img_url = None
+        img_meta = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "twitter:image"})
+        if img_meta:
+            img_url = img_meta["content"]
+        else:
+            # Fallback: procura a primeira imagem com "produto" ou "main" no ID/Classe
+            img_tag = soup.find("img", {"id": "landingImage"}) or soup.find("img", {"class": "primary-image"})
+            if img_tag: img_url = img_tag.get("src")
+
+        # 2. Busca Nome
+        title_meta = soup.find("meta", property="og:title")
+        nome = title_meta["content"].split("|")[0].strip() if title_meta else "Produto em Oferta"
+        
+        # 3. Busca Preço (Lógica de Gatilho Mental)
         preco = None
-        for tag in soup.find_all(["span", "strong", "p"]):
-            texto = tag.get_text().strip()
-            if "R$" in texto and len(texto) < 15:
-                preco = f"💰 *Apenas: {texto}*"
+        for tag in soup.find_all(["span", "strong"]):
+            txt = tag.get_text().strip()
+            if "R$" in txt and len(txt) < 15:
+                preco = f"💰 *Apenas: {txt}*"
                 break
         
         if not preco:
-            preco = random.choice(["🔥 *O PREÇO CAIU!* (Veja no botão)", "😱 *OFERTA EXCLUSIVA!*", "📉 *MENOR PREÇO DO MÊS!*"])
+            preco = random.choice([
+                "🔥 *O PREÇO BAIXOU!* Confira no site",
+                "😱 *OFERTA POR TEMPO LIMITADO!*",
+                "📉 *MELHOR PREÇO ENCONTRADO!*"
+            ])
             
         return nome, img_url, preco
-    except: return None, None, None
+    except:
+        return None, None, None
 
 def converter_afiliado(url, site_nome, ids):
     s = site_nome.lower()

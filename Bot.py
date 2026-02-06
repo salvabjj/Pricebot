@@ -100,67 +100,80 @@ def main():
     
     nichos = config.get("nichos", [])
     sites = config.get("sites", [])
-    random.shuffle(nichos)
+
+    # --- LÓGICA DE PRIORIDADE ---
+    # Separamos as lojas prioritárias das demais
+    prioritarias = [s for s in sites if s['nome'].lower() in ["amazon", "mercadolivre", "shopee"]]
+    outras = [s for s in sites if s['nome'].lower() not in ["amazon", "mercadolivre", "shopee"]]
     
+    # Garantimos pelo menos 1 tentativa de sucesso em cada prioritária primeiro
+    for loja_prioridade in prioritarias:
+        sucesso_loja = False
+        random.shuffle(nichos)
+        for nicho in nichos:
+            if sucesso_loja: break
+            termo = random.choice(nicho["termos"])
+            print(f"⭐ PRIORIDADE: {loja_prioridade['nome']} -> {termo}")
+            try:
+                r = requests.get(loja_prioridade["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
+                soup = BeautifulSoup(r.text, "html.parser")
+                links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/dp/", "/item/", "MLB-", "-P_"])]
+                random.shuffle(links)
+                for l in links[:10]:
+                    url_f = limpar_url(tratar_link(l, loja_prioridade['nome']))
+                    if url_f in history: continue
+                    nome, foto_bytes, valor = extrair_detalhes(url_f, loja_prioridade['nome'])
+                    if nome and foto_bytes:
+                        url_af = converter_afiliado(url_f, loja_prioridade['nome'], afiliados)
+                        frase = escolher_frase_inteligente(nome, copies)
+                        msg = f"{frase}\n\n📦 *{nome}*\n\n{valor}\n\n🛒 Loja: {loja_prioridade['nome'].upper()}"
+                        btn = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 COMPRAR AGORA", url=url_af)]])
+                        bot.send_photo(chat_id, photo=foto_bytes, caption=msg, reply_markup=btn, parse_mode="Markdown")
+                        history.append(url_f)
+                        stats["enviados"] += 1
+                        stats["lojas"][loja_prioridade['nome']] = stats["lojas"].get(loja_prioridade['nome'], 0) + 1
+                        sucesso_loja = True
+                        time.sleep(15)
+                        break
+            except: continue
+
+    # --- RESTANTE DA EXECUÇÃO (Até completar 10) ---
+    random.shuffle(nichos)
     for nicho in nichos:
         if stats["enviados"] >= 10: break
-        random.shuffle(sites)
-        for site in sites:
+        lista_restante = prioritarias + outras # Mistura tudo para o resto das vagas
+        random.shuffle(lista_restante)
+        for site in lista_restante:
             if stats["enviados"] >= 10: break
             termo = random.choice(nicho["termos"])
-            print(f"🔎 Buscando: {termo} em {site['nome']}")
             try:
                 r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
                 soup = BeautifulSoup(r.text, "html.parser")
                 links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/dp/", "/item/", "MLB-", "-P_"])]
                 random.shuffle(links)
-                
-                for l in links[:15]:
+                for l in links[:5]:
                     url_f = limpar_url(tratar_link(l, site['nome']))
                     if url_f in history: continue
-                    
                     nome, foto_bytes, valor = extrair_detalhes(url_f, site['nome'])
-                    
                     if nome and foto_bytes:
                         url_af = converter_afiliado(url_f, site['nome'], afiliados)
                         frase = escolher_frase_inteligente(nome, copies)
                         msg = f"{frase}\n\n📦 *{nome}*\n\n{valor}\n\n🛒 Loja: {site['nome'].upper()}"
                         btn = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 COMPRAR AGORA", url=url_af)]])
-                        
-                        try:
-                            bot.send_photo(chat_id, photo=foto_bytes, caption=msg, reply_markup=btn, parse_mode="Markdown")
-                            history.append(url_f)
-                            stats["enviados"] += 1
-                            stats["lojas"][site['nome']] = stats["lojas"].get(site['nome'], 0) + 1
-                            print(f"✅ POSTADO: {nome[:30]}")
-                            time.sleep(15) 
-                            break
-                        except:
-                            stats["erros"] += 1
-                            continue
-            except:
-                stats["erros"] += 1
-                continue
+                        bot.send_photo(chat_id, photo=foto_bytes, caption=msg, reply_markup=btn, parse_mode="Markdown")
+                        history.append(url_f)
+                        stats["enviados"] += 1
+                        stats["lojas"][site['nome']] = stats["lojas"].get(site['nome'], 0) + 1
+                        time.sleep(15)
+                        break
+            except: continue
 
     # --- RELATÓRIO FINAL ---
     end_time = datetime.now()
-    duration = end_time - start_time
     lojas_info = "\n".join([f"📍 {l}: {c}" for l, c in stats["lojas"].items()])
-    
-    relatorio = (
-        f"📊 *RELATÓRIO DE ATIVIDADE*\n"
-        f"🕒 Finalizado em: `{end_time.strftime('%H:%M:%S')}`\n"
-        f"⏱ Duração: `{str(duration).split('.')[0]}`\n\n"
-        f"✅ *Ofertas postadas:* {stats['enviados']}\n"
-        f"⚠️ *Falhas/Bloqueios:* {stats['erros']}\n\n"
-        f"🏢 *Por Loja:*\n{lojas_info if lojas_info else 'Nenhuma'}"
-    )
-    
-    try:
-        bot.send_message(report_chat_id, text=relatorio, parse_mode="Markdown")
-    except:
-        pass
-
+    relatorio = f"📊 *RELATÓRIO DE ATIVIDADE*\n✅ *Ofertas:* {stats['enviados']}\n\n🏢 *Por Loja:*\n{lojas_info}"
+    try: bot.send_message(report_chat_id, text=relatorio, parse_mode="Markdown")
+    except: pass
     save_json(HISTORY_FILE, history[-600:])
 
 if __name__ == "__main__":

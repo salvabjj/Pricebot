@@ -2,8 +2,9 @@ import os, json, random, time, requests, re
 from bs4 import BeautifulSoup
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from io import BytesIO
+from datetime import datetime
 
-# Arquivos
+# Arquivos de Dados
 HISTORY_FILE = "History.json"
 AFFILIATES_FILE = "Affiliates.json"
 CATEGORIES_FILE = "Categories.json"
@@ -21,7 +22,6 @@ def save_json(file, data):
         json.dump(data, f, indent=2)
 
 def limpar_url(url):
-    # Remove rastreios de busca para não repetir produtos
     return url.split('?')[0].split('#')[0]
 
 def escolher_frase_inteligente(titulo, copies):
@@ -57,7 +57,6 @@ def extrair_detalhes(url, loja_nome):
         img_url = img_tag["content"] if img_tag else None
         if not img_url: return None, None, None
 
-        # Captura de preço aprimorada
         texto = res.text.replace('\n', ' ').replace('\xa0', ' ')
         precos = re.findall(r'(?:R\$|R\$\s?|Price:)\s?([\d\.]+\,\d{2})', texto)
         preco_final = f"💰 *Preço: R$ {precos[0]}*" if precos else "🔥 *Confira o valor no site!*"
@@ -89,27 +88,30 @@ def converter_afiliado(url, site_nome, ids):
 def main():
     bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
     chat_id = os.getenv("CHAT_ID")
+    report_chat_id = os.getenv("REPORT_CHAT_ID", chat_id) 
+    
     history = load_json(HISTORY_FILE)
     config = load_json(CATEGORIES_FILE)
     afiliados = load_json(AFFILIATES_FILE)
     copies = load_json(COPY_FILE)
     
-    total_enviados = 0
+    start_time = datetime.now()
+    stats = {"enviados": 0, "lojas": {}, "erros": 0}
+    
     nichos = config.get("nichos", [])
     sites = config.get("sites", [])
     random.shuffle(nichos)
     
     for nicho in nichos:
-        if total_enviados >= 10: break
+        if stats["enviados"] >= 10: break
         random.shuffle(sites)
         for site in sites:
-            if total_enviados >= 10: break
+            if stats["enviados"] >= 10: break
             termo = random.choice(nicho["termos"])
             print(f"🔎 Buscando: {termo} em {site['nome']}")
             try:
                 r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
                 soup = BeautifulSoup(r.text, "html.parser")
-                # Filtro de links mais preciso
                 links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/dp/", "/item/", "MLB-", "-P_"])]
                 random.shuffle(links)
                 
@@ -128,14 +130,37 @@ def main():
                         try:
                             bot.send_photo(chat_id, photo=foto_bytes, caption=msg, reply_markup=btn, parse_mode="Markdown")
                             history.append(url_f)
-                            total_enviados += 1
+                            stats["enviados"] += 1
+                            stats["lojas"][site['nome']] = stats["lojas"].get(site['nome'], 0) + 1
                             print(f"✅ POSTADO: {nome[:30]}")
                             time.sleep(15) 
                             break
-                        except Exception as e:
-                            print(f"Erro Telegram: {e}")
+                        except:
+                            stats["erros"] += 1
                             continue
-            except: continue
+            except:
+                stats["erros"] += 1
+                continue
+
+    # --- RELATÓRIO FINAL ---
+    end_time = datetime.now()
+    duration = end_time - start_time
+    lojas_info = "\n".join([f"📍 {l}: {c}" for l, c in stats["lojas"].items()])
+    
+    relatorio = (
+        f"📊 *RELATÓRIO DE ATIVIDADE*\n"
+        f"🕒 Finalizado em: `{end_time.strftime('%H:%M:%S')}`\n"
+        f"⏱ Duração: `{str(duration).split('.')[0]}`\n\n"
+        f"✅ *Ofertas postadas:* {stats['enviados']}\n"
+        f"⚠️ *Falhas/Bloqueios:* {stats['erros']}\n\n"
+        f"🏢 *Por Loja:*\n{lojas_info if lojas_info else 'Nenhuma'}"
+    )
+    
+    try:
+        bot.send_message(report_chat_id, text=relatorio, parse_mode="Markdown")
+    except:
+        pass
+
     save_json(HISTORY_FILE, history[-600:])
 
 if __name__ == "__main__":

@@ -18,53 +18,55 @@ def load_json(file):
 def extrair_detalhes(url):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache"
+        "Accept-Language": "pt-BR,pt;q=0.9",
+        "Referer": "https://www.google.com.br/"
     }
     try:
         res = requests.get(url, headers=headers, timeout=25)
         soup = BeautifulSoup(res.text, "html.parser")
         
-        # 1. Nome do Produto
+        # 1. Nome
         title = soup.find("meta", property="og:title") or soup.find("h1")
         nome = title["content"].split("|")[0].strip() if title and title.has_attr("content") else (title.get_text().strip() if title else "Produto em Oferta")
         
         # 2. Imagem
-        img = soup.find("meta", property="og:image") or soup.find("img", {"id": "landingImage"}) or soup.find("img", {"class": re.compile(r'product-image', re.I)})
+        img = soup.find("meta", property="og:image") or soup.find("img", {"id": "landingImage"})
         img_url = img["content"] if img and img.has_attr("content") else (img["src"] if img and img.has_attr("src") else None)
         
-        # 3. Busca de Preço (Técnica Ninja para Netshoes/ML/Amazon)
+        # 3. Preço (Busca exaustiva para Netshoes/ML)
         preco = None
-        
-        # A. Tenta ler o JSON estruturado (Mais difícil de bloquearem)
+        # Tentativa 1: JSON estruturado
         script_json = soup.find("script", type="application/ld+json")
         if script_json:
             try:
                 data = json.loads(script_json.string)
-                if isinstance(data, dict) and "offers" in data:
-                    offer = data["offers"]
-                    p = offer.get("price") or offer[0].get("price") if isinstance(offer, list) else offer.get("price")
-                    if p: preco = f"💰 *Apenas: R$ {str(p).replace('.', ',')}*"
+                # Lógica para tratar listas de ofertas no JSON
+                offers = data.get("offers", {})
+                if isinstance(offers, list): offers = offers[0]
+                p = offers.get("price")
+                if p: preco = f"💰 *Apenas: R$ {str(p).replace('.', ',')}*"
             except: pass
 
-        # B. Se falhar, tenta busca textual padrão
+        # Tentativa 2: Seletores específicos (Netshoes 'varejo-price' / ML 'price-tag')
         if not preco:
-            for tag in soup.find_all(["span", "strong", "p", "div"], class_=re.compile(r'price|valor|price-value', re.I)):
+            seletor_preco = soup.find(class_=re.compile(r'price|valor|price-tag|varejo-price', re.I))
+            if seletor_preco:
+                txt = seletor_preco.get_text().strip()
+                if "R$" in txt: preco = f"💰 *Apenas: {txt}*"
+
+        # Tentativa 3: Busca Geral
+        if not preco:
+            for tag in soup.find_all(["span", "strong"], text=re.compile(r'R\$')):
                 txt = tag.get_text().strip()
-                if "R$" in txt and len(txt) < 20:
+                if len(txt) < 20:
                     preco = f"💰 *Apenas: {txt}*"
                     break
         
-        # C. Fallback Final (Frase Chamativa)
         if not preco:
-            preco = random.choice(["🔥 *PREÇO IMBATÍVEL!*", "😱 *DESCONTO ATIVO!*", "📉 *O PREÇO CAIU!*"])
+            preco = "🔥 *VEJA O PREÇO NO SITE!* (Desconto aplicado)"
             
         return nome, img_url, preco
-    except Exception as e:
-        print(f"Erro ao extrair detalhes: {e}")
-        return None, None, None
+    except: return None, None, None
 
 def converter_afiliado(url, site_nome, ids):
     s = site_nome.lower()
@@ -85,22 +87,22 @@ def main():
 
     enviados_total = 0
     meta = 3
-    tentativas = 0
-    lojas_vistas = [] 
+    
+    nichos = config.get("nichos", [])
+    random.shuffle(nichos)
 
-    while enviados_total < meta and tentativas < 15:
-        tentativas += 1
-        nichos = config.get("nichos", [])
-        nicho = random.choice(nichos)
+    for nicho in nichos:
+        if enviados_total >= meta: break
         
+        # PRIORIZAÇÃO DE LOJAS: Tenta as mais difíceis primeiro
         sites = config.get("sites", [])
-        random.shuffle(sites)
+        sites.sort(key=lambda x: x['nome'] not in ['MercadoLivre', 'Amazon']) 
 
         for site in sites:
             if enviados_total >= meta: break
             
             termo = random.choice(nicho["termos"])
-            print(f"Tentativa {tentativas}: Buscando {termo} em {site['nome']}...")
+            print(f"Buscando {termo} em {site['nome']}...")
             
             try:
                 r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
@@ -129,7 +131,7 @@ def main():
                         
                         history.append(link)
                         enviados_total += 1
-                        print(f"✅ Sucesso {enviados_total}/3")
+                        print(f"✅ Postado: {site['nome']} ({enviados_total}/3)")
                         time.sleep(15)
                         break 
                     except: continue

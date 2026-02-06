@@ -2,36 +2,37 @@ name: PriceBot_Execution
 
 on:
   schedule:
-    - cron: '0 * * * *' # Roda a cada hora
-  workflow_dispatch: # Permite rodar manualmente
+    - cron: '0 * * * *' # Roda automaticamente toda hora
+  workflow_dispatch: # Permite que você clique no botão "Run workflow" manualmente
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Permissão para salvar o histórico no seu GitHub
+      contents: write # Dá permissão para o bot salvar o History.json no seu GitHub
+    
     steps:
-      - name: Checkout do código
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: Configurar Python
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Instalar Dependências
+      - name: 📦 Instalar Dependencias
         run: |
           pip install requests beautifulsoup4 python-telegram-bot==13.15
 
-      - name: Executar Bot
+      - name: 🤖 Executar Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python Bot.py
 
-      - name: Sincronizar Histórico
+      - name: 💾 Sincronizar Memorias
         run: |
-          git config --global user.name "GitHub Action"
+          git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
-          git add History.json Affiliates.json product_cache.json || true
-          git diff --quiet && git diff --staged --quiet || (git commit -m "bot: atualizando memoria [skip ci]" && git push)
+          git add History.json Affiliates.json LastStore.json product_cache.json || true
+          git diff --quiet && git diff --staged --quiet || (git commit -m "bot: atualizando memorias [skip ci]" && git push)

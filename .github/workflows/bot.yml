@@ -4,8 +4,42 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 * * * *'
+name: PriceBot_Execution
+
+on:
+  schedule:
+    - cron: '0 * * * *' # De hora em hora
+  workflow_dispatch:
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install requests beautifulsoup4 python-telegram-bot==13.15
+
+      - name: Run Bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python Bot.py
+
+      - name: Sync Memory (JSONs)
+        run: |
+          git config --global user.name "PriceBot"
+          git config --global user.email "bot@pricebot.com"
+          git add History.json Affiliates.json LastStore.json product_cache.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "bot: atualizando memória [skip ci]" && git push)jobs:
   rodar_bot:
     runs-on: ubuntu-latest
     permissions:

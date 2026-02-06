@@ -1,40 +1,31 @@
-name: Pricebot Pro - Captura Visual
+name: PriceBot_Run
 
 on:
+  workflow_dispatch: # Botão manual
   schedule:
-    # Roda a cada 2 horas para evitar bloqueio excessivo de IP
-    - cron: '0 */2 * * *'
-  workflow_dispatch: # Permite rodar manualmente pelo botão no GitHub
+    - cron: '0 * * * *' # Roda de hora em hora
 
 jobs:
-  build:
+  rodar_bot:
     runs-on: ubuntu-latest
-
-    # Permissões necessárias para salvar o histórico (History.json) de volta no repositório
-    permissions:
-      contents: write
-
     steps:
-      - name: 📥 Checkout do Repositório
+      - name: Copiar arquivos
         uses: actions/checkout@v4
 
-      - name: 🐍 Configurar Python 3.10
+      - name: Instalar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: 📦 Instalar Dependências e Navegador
+      - name: Instalar Bibliotecas
         run: |
-          python -m pip install --upgrade pip
-          pip install playwright python-telegram-bot requests beautifulsoup4
-          # Instala o motor do Chrome e as bibliotecas de sistema necessárias
-          playwright install chromium
-          playwright install-deps chromium
+          pip install requests beautifulsoup4 python-telegram-bot==13.15
 
-      - name: 🤖 Executar Bot de Captura (Prynt Sceen)
+      - name: Executar script
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python Bot.py          CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python Bot.py
 
       - name: 💾 Salvar Histórico de Ofertas

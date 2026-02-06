@@ -2,7 +2,7 @@ import os, json, random, time, requests
 from bs4 import BeautifulSoup
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
-# CONFIGURAÇÃO DE ARQUIVOS (MAIÚSCULOS)
+# CONFIGURAÇÃO DE ARQUIVOS
 HISTORY_FILE = "History.json"
 AFFILIATES_FILE = "Affiliates.json"
 CATEGORIES_FILE = "Categories.json"
@@ -16,20 +16,15 @@ def load_json(file):
     return {}
 
 def extrair_detalhes(url):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     try:
         res = requests.get(url, headers=headers, timeout=15)
         soup = BeautifulSoup(res.text, "html.parser")
-        
-        # Busca Imagem
         img = soup.find("meta", property="og:image")
         img_url = img["content"] if img else None
-        
-        # Busca Nome
         title = soup.find("meta", property="og:title")
         nome = title["content"].split("|")[0].strip() if title else "Produto em Oferta"
         
-        # LÓGICA DE PREÇO COM FALLBACK TEXTUAL
         preco = None
         for tag in soup.find_all(["span", "strong", "p"]):
             texto = tag.get_text().strip()
@@ -37,15 +32,8 @@ def extrair_detalhes(url):
                 preco = f"💰 *Apenas: {texto}*"
                 break
         
-        # Se não achou o preço exato, usa frase chamativa
         if not preco:
-            frases_curiosidade = [
-                "🔥 *PREÇO IMBATÍVEL!* (Confira no botão abaixo)",
-                "😱 *O MENOR PREÇO DO ANO!* Clique para ver",
-                "📉 *QUEDA DE PREÇO DETECTADA!* Veja agora",
-                "💎 *OFERTA EXCLUSIVA!* Valor liberado no site"
-            ]
-            preco = random.choice(frases_curiosidade)
+            preco = random.choice(["🔥 *O PREÇO CAIU!* (Veja no botão)", "😱 *OFERTA EXCLUSIVA!*", "📉 *MENOR PREÇO DO MÊS!*"])
             
         return nome, img_url, preco
     except: return None, None, None
@@ -70,25 +58,36 @@ def main():
     copies = load_json(COPY_FILE)
 
     enviados_total = 0
-    meta = 3
+    lojas_usadas = [] # Lista para evitar repetir a mesma loja 3 vezes seguidas
     
-    todos_nichos = config.get("nichos", [])
-    random.shuffle(todos_nichos)
+    nichos = config.get("nichos", [])
+    random.shuffle(nichos)
 
-    for nicho in todos_nichos:
-        if enviados_total >= meta: break
+    for nicho in nichos:
+        if enviados_total >= 3: break
 
-        for site in config.get("sites", []):
-            if enviados_total >= meta: break
+        # SORTEIO DE LOJAS: Prioriza sites diferentes
+        sites = config.get("sites", [])
+        random.shuffle(sites)
+
+        for site in sites:
+            if enviados_total >= 3: break
             
+            # Tenta evitar repetir a loja da mensagem anterior se possível
+            if site["nome"] in lojas_usadas and len(lojas_usadas) < len(sites):
+                continue
+
             termo = random.choice(nicho["termos"])
+            # Filtro para nicho Choice (Exclusivo Shopee)
             if nicho["id"] == "choice" and "shopee" not in site["nome"]: continue
             
-            print(f"Buscando {termo}...")
+            print(f"Buscando {termo} em {site['nome']}...")
             try:
-                r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent":"Mozilla/5.0"}, timeout=10)
+                headers = {"User-Agent": "Mozilla/5.0"}
+                r = requests.get(site["url"] + termo.replace(" ", "+"), headers=headers, timeout=12)
                 soup = BeautifulSoup(r.text, "html.parser")
-                links = [a['href'] for a in soup.find_all('a', href=True) if "/p/" in a['href'] or "/dp/" in a['href']]
+                # Busca links específicos por loja
+                links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/item/", "/dp/"])]
             except: links = []
 
             for link in list(set(links)):
@@ -97,7 +96,7 @@ def main():
 
                 if link not in history:
                     nome, img, texto_venda = extrair_detalhes(link)
-                    if not nome or "Amazon.com.br" in nome: continue 
+                    if not nome or "Amazon" in nome and len(nome) < 10: continue 
 
                     link_af = converter_afiliado(link, site["nome"], afiliados)
                     frase_topo = random.choice(copies.get(nicho["id"], ["🔥 OFERTA!"]))
@@ -110,6 +109,7 @@ def main():
                         else: bot.send_message(chat_id=chat_id, text=msg, reply_markup=kb, parse_mode="Markdown")
                         
                         history.append(link)
+                        lojas_usadas.append(site["nome"])
                         enviados_total += 1
                         time.sleep(15)
                         break 

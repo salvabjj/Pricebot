@@ -1,31 +1,31 @@
 {
   "sites": [
-    {"nome": "amazon", "url": "https://www.amazon.com.br/s?k="},
-    {"nome": "mercadolivre", "url": "https://lista.mercadolivre.com.br/"},
-    {"nome": "shopee", "url": "https://shopee.com.br/search?keyword="},
-    {"nome": "netshoes", "url": "https://www.netshoes.com.br/busca?q="},
-    {"nome": "zattini", "url": "https://www.zattini.com.br/busca?q="}
+    {"nome": "Amazon", "url": "https://www.amazon.com.br/s?k="},
+    {"nome": "Mercado Livre", "url": "https://lista.mercadolivre.com.br/"},
+    {"nome": "Shopee", "url": "https://shopee.com.br/search?keyword="},
+    {"nome": "Netshoes", "url": "https://www.netshoes.com.br/busca?q="},
+    {"nome": "Zattini", "url": "https://www.zattini.com.br/busca?q="}
   ],
   "nichos": [
     {
+      "id": "eletronicos", 
+      "termos": ["iPhone 15", "smartphone 5G", "Samsung Galaxy S23", "fone bluetooth", "smartwatch", "caixa de som JBL", "PlayStation 5", "Nintendo Switch"]
+    },
+    {
       "id": "esportes", 
-      "termos": ["luva de boxe", "kimono jiu jitsu", "tenis de corrida masculino", "bandagem muay thai", "saco de pancada"]
-    },
-    {
-      "id": "fitness", 
-      "termos": ["whey protein", "creatina monohidratada", "pre treino", "suplemento termogenico"]
-    },
-    {
-      "id": "moda", 
-      "termos": ["tenis casual", "camisa polo masculina", "vestido feminino casual", "calça jeans masculina"]
+      "termos": ["luva de boxe", "kimono jiu jitsu", "tenis de corrida masculino", "bandagem muay thai", "saco de pancada", "Tênis Nike Air", "Tênis Adidas"]
     },
     {
       "id": "eletrodomesticos", 
-      "termos": ["Smarttv", "air fryer", "geladeira", "micro-ondas"]
+      "termos": ["Smart TV 4K", "air fryer Mondial", "geladeira frost free", "micro-ondas", "Alexa Echo Dot", "Aspirador Robô"]
     },
     {
-      "id": "eletronicos", 
-      "termos": ["fone bluetooth", "smartwatch", "caixa de som", "iphone 15", "smartphone"]
+      "id": "fitness", 
+      "termos": ["whey protein optium", "creatina monohidratada", "pre treino", "suplemento termogenico", "tapete de ioga"]
+    },
+    {
+      "id": "moda", 
+      "termos": ["tenis casual", "camisa polo masculina", "vestido feminino casual", "calça jeans masculina", "Perfume Importado Masculino", "Relógio Casio G-Shock"]
     },
     {
       "id": "fallback", 

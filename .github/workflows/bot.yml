@@ -1,14 +1,8 @@
-name: PriceBot_Run
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 * * * *'
 name: PriceBot_Execution
 
 on:
   schedule:
-    - cron: '0 * * * *' # De hora em hora
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -34,62 +28,9 @@ jobs:
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python Bot.py
 
-      - name: Sync Memory (JSONs)
+      - name: Sync Memory
         run: |
-          git config --global user.name "PriceBot"
-          git config --global user.email "bot@pricebot.com"
-          git add History.json Affiliates.json LastStore.json product_cache.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "bot: atualizando memória [skip ci]" && git push)jobs:
-  rodar_bot:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # Necessário para o git push funcionar
-    steps:
-      - name: Copiar arquivos
-        uses: actions/checkout@v4
-
-      - name: Instalar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Instalar Bibliotecas
-        run: |
-          pip install requests beautifulsoup4 python-telegram-bot==13.15
-
-      - name: Executar script
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python Bot.py
-
-      - name: 💾 Salvar Histórico
-        run: |
-          git config --global user.name "GitHub Action Bot"
+          git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
-          git add History.json || true
-          git diff --quiet && git diff --staged --quiet || (git commit -m "📊 Histórico atualizado [skip ci]" && git push)          git diff --quiet && git diff --staged --quiet || (git commit -m "📊 Histórico atualizado [skip ci]" && git push)    except Exception as e:
-        print(f"Erro no scraping: {e}")
-    return None
-
-def main():
-    bot = Bot(token=TOKEN)
-    print("🤖 Iniciando monitoramento...")
-    
-    oferta = buscar_oferta()
-    
-    if oferta:
-        msg = (
-            f"🔥 *OFERTA ENCONTRADA*\n\n"
-            f"📦 {oferta['titulo']}\n"
-            f"💰 *R$ {oferta['valor']}*\n\n"
-            f"🛒 [VER NO SITE]({oferta['url']})"
-        )
-        # Na v13.15, o envio é síncrono (sem await)
-        bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode=ParseMode.MARKDOWN)
-        print("✅ Mensagem enviada!")
-    else:
-        print("0 ofertas capturadas nesta rodada.")
-
-if __name__ == "__main__":
-    main()
+          git add History.json Affiliates.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "bot: atualizando memoria [skip ci]" && git push)

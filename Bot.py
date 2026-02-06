@@ -2,7 +2,7 @@ import os, json, random, time, requests, re
 from bs4 import BeautifulSoup
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
-# Arquivos de Dados
+# Arquivos
 HISTORY_FILE = "History.json"
 AFFILIATES_FILE = "Affiliates.json"
 CATEGORIES_FILE = "Categories.json"
@@ -24,15 +24,17 @@ def extrair_detalhes(url, loja_nome):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
     try:
         loja = loja_nome.lower()
-        # Regra: ML e Amazon usam PRINT DA TELA INTEIRA
         usar_print = "amazon" in loja or "mercadolivre" in loja
         
         if usar_print:
             img = f"https://s0.wp.com/mshots/v1/{url}?w=1024&h=768"
-            nome = "Oferta Imperdível"
-            preco = "✅ *Preço disponível no print da tela acima!*"
+            # PRÉ-CARREGAMENTO: Avisa o WordPress para gerar a imagem
+            try: requests.get(img, timeout=5) 
+            except: pass
             
-            # Tenta pegar o nome real para a legenda ficar top
+            nome = "Oferta Especial"
+            preco = "✅ *Preço no print da tela acima!*"
+            
             try:
                 r_web = requests.get(url, headers=headers, timeout=10)
                 s_web = BeautifulSoup(r_web.text, "html.parser")
@@ -44,20 +46,16 @@ def extrair_detalhes(url, loja_nome):
             
             return nome[:100], img, preco
 
-        # LÓGICA DE FOTO LIMPA PARA SHOPEE, NETSHOES E ZATTINI
+        # FOTO LIMPA PARA SHOPEE, NETSHOES E ZATTINI
         res = requests.get(url, headers=headers, timeout=15)
         soup = BeautifulSoup(res.text, "html.parser")
-        
         title = soup.find("meta", property="og:title") or soup.find("h1")
         nome = title["content"] if title and title.has_attr("content") else (title.get_text().strip() if title else "Produto")
         nome = re.sub(r'| Netshoes| | Shopee| | Zattini', '', nome, flags=re.IGNORECASE).strip()
-
         img_tag = soup.find("meta", property="og:image")
         img = img_tag["content"] if img_tag else None
-
-        texto_limpo = re.sub(r'\d+\s?[xX]\s?de\s?R\$\s?[\d.,]+', '', res.text)
-        match = re.search(r'R\$\s?(\d{1,3}(\.\d{3})*,\d{2})', texto_limpo)
-        preco = f"💰 *Apenas: {match.group(0)}*" if match else "🔥 *Confira o preço no site!*"
+        match = re.search(r'R\$\s?(\d{1,3}(\.\d{3})*,\d{2})', re.sub(r'\d+\s?[xX]\s?de\s?R\$\s?[\d.,]+', '', res.text))
+        preco = f"💰 *Apenas: {match.group(0)}*" if match else "🔥 *Confira no site!*"
             
         return nome, img, preco
     except: return None, None, None
@@ -90,24 +88,67 @@ def main():
     
     ultima_loja_global = memoria.get("last_store", "")
     total_enviados = 0
-    max_posts = 10
     lojas_nesta_rodada = []
     
     ordem_sites = list(config.get("sites", []))
     if ultima_loja_global:
-        if "mercadolivre" in ultima_loja_global.lower():
-            ordem_sites.sort(key=lambda x: "shopee" not in x["nome"].lower())
-        elif "netshoes" in ultima_loja_global.lower():
-            ordem_sites.sort(key=lambda x: "amazon" not in x["nome"].lower())
+        if "mercadolivre" in ultima_loja_global.lower(): ordem_sites.sort(key=lambda x: "shopee" not in x["nome"].lower())
+        elif "netshoes" in ultima_loja_global.lower(): ordem_sites.sort(key=lambda x: "amazon" not in x["nome"].lower())
 
     nichos = config.get("nichos", [])
     random.shuffle(nichos)
 
     for nicho in nichos:
-        if total_enviados >= max_posts: break
+        if total_enviados >= 10: break
         for site in ordem_sites:
-            if total_enviados >= max_posts: break
+            if total_enviados >= 10: break
             
-            # Regra de Pares (ML-Shopee / Netshoes-Amazon)
             if lojas_nesta_rodada:
-                anterior = lojas
+                anterior = lojas_nesta_rodada[-1].lower()
+                if "mercadolivre" in anterior and "shopee" not in site['nome'].lower(): continue
+                if "netshoes" in anterior and "amazon" not in site['nome'].lower(): continue
+
+            termo = random.choice(nicho["termos"])
+            print(f"🔎 Buscando: {termo} em {site['nome']}")
+            
+            try:
+                r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+                soup = BeautifulSoup(r.text, "html.parser")
+                # Filtro reforçado: links que contenham padrões de produtos reais
+                links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/dp/", "/item/", "MLB-", "-P_"])]
+                random.shuffle(links)
+
+                for l in links:
+                    url_real = tratar_link(l, site['nome'])
+                    if url_real in history or "gz.mercadolivre" in url_real: continue
+                    
+                    nome, img, preco = extrair_detalhes(url_real, site['nome'])
+                    
+                    if nome and img:
+                        url_af = converter_afiliado(url_real, site['nome'], afiliados)
+                        msg = f"{random.choice(copies.get(nicho['id'], ['🔥 OFERTA!']))}\n\n📦 *{nome}*\n\n{preco}\n\n🛒 Loja: {site['nome'].upper()}"
+                        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 COMPRAR AGORA", url=url_af)]])
+
+                        try:
+                            # Espera extra para o print carregar no WordPress
+                            if "mercadolivre" in site['nome'].lower() or "amazon" in site['nome'].lower():
+                                time.sleep(8) 
+                            
+                            bot.send_photo(chat_id, photo=img, caption=msg, reply_markup=kb, parse_mode="Markdown")
+                            history.append(url_real)
+                            lojas_nesta_rodada.append(site['nome'])
+                            ultima_loja_global = site['nome']
+                            total_enviados += 1
+                            print(f"✅ Enviado: {site['nome']} ({total_enviados}/10)")
+                            time.sleep(15)
+                            break
+                        except Exception as e:
+                            print(f"Erro Telegram: {e}")
+                            continue
+            except: continue
+
+    save_json(HISTORY_FILE, history[-500:])
+    save_json(LAST_STORE_FILE, {"last_store": ultima_loja_global})
+
+if __name__ == "__main__":
+    main()

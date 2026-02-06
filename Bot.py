@@ -23,29 +23,34 @@ def save_json(file, data):
 def extrair_detalhes(url, loja_nome):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
     try:
-        is_amazon = "amazon" in loja_nome.lower()
+        loja = loja_nome.lower()
+        # Regra: ML e Amazon usam PRINT DA TELA INTEIRA
+        usar_print = "amazon" in loja or "mercadolivre" in loja
         
-        # TELA INTEIRA PARA AMAZON (Via mshots para evitar bloqueio 403)
-        if is_amazon:
+        if usar_print:
             img = f"https://s0.wp.com/mshots/v1/{url}?w=1024&h=768"
-            nome = "Oferta Especial Amazon"
-            preco = "✅ *Preço no print da tela acima!*"
-            # Tenta pegar o nome real apenas para a legenda
+            nome = "Oferta Imperdível"
+            preco = "✅ *Preço disponível no print da tela acima!*"
+            
+            # Tenta pegar o nome real para a legenda ficar top
             try:
-                r_amz = requests.get(url, headers=headers, timeout=10)
-                s_amz = BeautifulSoup(r_amz.text, "html.parser")
-                t = s_amz.find("h1", id="title") or s_amz.find("meta", property="og:title")
-                if t: nome = t.get_text().strip()[:100]
+                r_web = requests.get(url, headers=headers, timeout=10)
+                s_web = BeautifulSoup(r_web.text, "html.parser")
+                t = s_web.find("h1") or s_web.find("meta", property="og:title")
+                if t: 
+                    nome = (t.get_text().strip() if not t.has_attr("content") else t["content"])
+                    nome = re.sub(r'| Mercado Livre| | Amazon', '', nome, flags=re.IGNORECASE).strip()
             except: pass
-            return nome, img, preco
+            
+            return nome[:100], img, preco
 
-        # LÓGICA NORMAL PARA OUTRAS LOJAS
+        # LÓGICA DE FOTO LIMPA PARA SHOPEE, NETSHOES E ZATTINI
         res = requests.get(url, headers=headers, timeout=15)
         soup = BeautifulSoup(res.text, "html.parser")
         
         title = soup.find("meta", property="og:title") or soup.find("h1")
         nome = title["content"] if title and title.has_attr("content") else (title.get_text().strip() if title else "Produto")
-        nome = re.sub(r'| Netshoes| | Mercado Livre| | Shopee| | Zattini', '', nome, flags=re.IGNORECASE).strip()
+        nome = re.sub(r'| Netshoes| | Shopee| | Zattini', '', nome, flags=re.IGNORECASE).strip()
 
         img_tag = soup.find("meta", property="og:image")
         img = img_tag["content"] if img_tag else None
@@ -103,49 +108,6 @@ def main():
         for site in ordem_sites:
             if total_enviados >= max_posts: break
             
-            # Regra de Pares
+            # Regra de Pares (ML-Shopee / Netshoes-Amazon)
             if lojas_nesta_rodada:
-                anterior = lojas_nesta_rodada[-1].lower()
-                if "mercadolivre" in anterior and "shopee" not in site['nome'].lower(): continue
-                if "netshoes" in anterior and "amazon" not in site['nome'].lower(): continue
-
-            termo = random.choice(nicho["termos"])
-            print(f"🔎 Buscando: {termo} em {site['nome']}")
-            
-            try:
-                r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
-                soup = BeautifulSoup(r.text, "html.parser")
-                links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/dp/", "/item/", "MLB-"])]
-                random.shuffle(links)
-
-                for l in links:
-                    url_real = tratar_link(l, site['nome'])
-                    if url_real in history: continue
-                    
-                    nome, img, preco = extrair_detalhes(url_real, site['nome'])
-                    
-                    if nome and img:
-                        url_af = converter_afiliado(url_real, site['nome'], afiliados)
-                        frase = random.choice(copies.get(nicho["id"], ["🔥 OFERTA!"]))
-                        msg = f"{frase}\n\n📦 *{nome}*\n\n{preco}\n\n🛒 Loja: {site['nome'].upper()}"
-                        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 COMPRAR AGORA", url=url_af)]])
-
-                        try:
-                            bot.send_photo(chat_id, photo=img, caption=msg, reply_markup=kb, parse_mode="Markdown")
-                            history.append(url_real)
-                            lojas_nesta_rodada.append(site['nome'])
-                            ultima_loja_global = site['nome']
-                            total_enviados += 1
-                            print(f"✅ Enviado: {site['nome']} ({total_enviados}/10)")
-                            time.sleep(15)
-                            break
-                        except Exception as e:
-                            print(f"Erro Telegram: {e}")
-                            continue
-            except: continue
-
-    save_json(HISTORY_FILE, history[-500:])
-    save_json(LAST_STORE_FILE, {"last_store": ultima_loja_global})
-
-if __name__ == "__main__":
-    main()
+                anterior = lojas

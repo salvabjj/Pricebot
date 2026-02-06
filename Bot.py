@@ -16,43 +16,58 @@ def load_json(file):
 
 def extrair_detalhes(url):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://www.google.com/"
     }
     try:
         res = requests.get(url, headers=headers, timeout=20)
+        if res.status_code != 200: return None, None, None
         soup = BeautifulSoup(res.text, "html.parser")
         
-        # 1. Nome do Produto
+        # 1. Nome
         title = soup.find("meta", property="og:title") or soup.find("h1")
-        nome = title["content"].split("|")[0].strip() if title and title.has_attr("content") else (title.get_text().strip() if title else "Produto em Oferta")
+        nome = title["content"].split("|")[0].strip() if title and title.has_attr("content") else (title.get_text().strip() if title else "Produto")
         
-        # 2. Imagem
-        img = soup.find("meta", property="og:image") or soup.find("img", {"id": "landingImage"})
+        # 2. Imagem (Melhorado para Amazon e Netshoes)
+        img = soup.find("meta", property="og:image") or soup.find("img", {"id": "landingImage"}) or soup.find("img", {"id": "main-photo"})
         img_url = img["content"] if img and img.has_attr("content") else (img["src"] if img and img.has_attr("src") else None)
         
-        # 3. Preço (Ajustado para Netshoes e ML)
+        # 3. PREÇO (O grande desafio)
         preco = None
-        # Tenta JSON estruturado primeiro (Netshoes guarda aqui)
-        script_json = soup.find("script", type="application/ld+json")
-        if script_json:
-            try:
-                data = json.loads(script_json.string)
-                if isinstance(data, list): data = data[0]
-                p = data.get("offers", {}).get("price") if isinstance(data.get("offers"), dict) else data.get("offers", [{}])[0].get("price")
-                if p: preco = f"💰 *Apenas: R$ {str(p).replace('.', ',')}*"
-            except: pass
-
-        # Se falhar, busca por seletores comuns
-        if not preco:
-            # Seletores Netshoes e ML
-            tag_preco = soup.find(class_=re.compile(r'price|valor|price-tag|amount', re.I))
-            if tag_preco:
-                txt = tag_preco.get_text().strip()
-                if "R$" in txt: preco = f"💰 *Apenas: {txt}*"
         
+        # Tentativa A: Atributos de Meta (Comum em Netshoes/Zattini)
+        meta_p = soup.find("meta", property="product:price:amount") or soup.find("span", {"itemprop": "price"})
+        if meta_p:
+            v = meta_p.get("content") or meta_p.get_text()
+            if v: preco = f"💰 *Apenas: R$ {v.strip().replace('R$', '').strip()}*"
+
+        # Tentativa B: JSON estruturado (Netshoes/Amazon)
         if not preco:
-            preco = "🔥 *VEJA O PREÇO NO SITE!*"
+            scripts = soup.find_all("script", type="application/ld+json")
+            for s in scripts:
+                try:
+                    data = json.loads(s.string)
+                    if isinstance(data, list): data = data[0]
+                    main_offer = data.get("offers", {})
+                    if isinstance(main_offer, list): main_offer = main_offer[0]
+                    p = main_offer.get("price")
+                    if p: 
+                        preco = f"💰 *Apenas: R$ {str(p).replace('.', ',')}*"
+                        break
+                except: continue
+
+        # Tentativa C: Seletores de texto (Amazon/ML)
+        if not preco:
+            for selector in [".a-offscreen", ".price-tag-fraction", ".default-price"]:
+                tag = soup.select_one(selector)
+                if tag:
+                    preco = f"💰 *Apenas: {tag.get_text().strip()}*"
+                    break
+
+        if not preco:
+            preco = "🔥 *VALOR PROMOCIONAL NO SITE!*"
             
         return nome, img_url, preco
     except: return None, None, None
@@ -76,7 +91,6 @@ def main():
 
     enviados_total = 0
     meta = 3
-    
     nichos = config.get("nichos", [])
     random.shuffle(nichos)
 
@@ -87,24 +101,20 @@ def main():
 
         for site in sites:
             if enviados_total >= meta: break
-            
             termo = random.choice(nicho["termos"])
             print(f"Buscando {termo} em {site['nome']}...")
             
             try:
-                # User-Agent para evitar bloqueio na busca
                 r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
                 soup = BeautifulSoup(r.text, "html.parser")
-                
-                # Captura links (Lógica especial para ML)
                 links = []
                 for a in soup.find_all('a', href=True):
                     href = a['href']
-                    if any(x in href for x in ["/p/", "/item/", "/dp/", "produto.mercadolivre.com.br"]):
+                    if any(x in href for x in ["/p/", "/item/", "/dp/", "produto.mercadolivre"]):
                         if not href.startswith("http"):
-                            href = "https://www.mercadolivre.com.br" + href if "mercadolivre" in site['nome'].lower() else href
+                            base = "https://www.mercadolivre.com.br" if "mercadolivre" in site['nome'].lower() else f"https://www.{site['nome'].lower()}.com.br"
+                            href = base + (href if href.startswith("/") else "/" + href)
                         links.append(href)
-                
                 random.shuffle(links)
             except: links = []
 
@@ -126,11 +136,9 @@ def main():
                         history.append(link)
                         enviados_total += 1
                         print(f"✅ Sucesso {enviados_total}/3")
-                        time.sleep(15)
+                        time.sleep(10)
                         break 
-                    except Exception as e:
-                        print(f"Erro ao enviar Telegram: {e}")
-                        continue
+                    except: continue
 
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history[-500:], f, indent=2)

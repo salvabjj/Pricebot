@@ -22,25 +22,24 @@ def save_json(file, data):
 
 def escolher_frase_inteligente(titulo, copies):
     t = titulo.lower()
-    # Mapeamento de palavras-chave para categorias
     keywords = {
-        "eletronicos": ["iphone", "smartphone", "fone", "bluetooth", "smartwatch", "caixa", "som", "ps5", "nintendo", "monitor", "gamer"],
+        "eletronicos": ["iphone", "smartphone", "fone", "bluetooth", "smartwatch", "caixa", "som", "ps5", "nintendo", "monitor", "gamer", "tv", "eletro"],
         "fitness": ["whey", "creatina", "pre treino", "suplemento", "termogenico", "shaker", "proteina"],
-        "esportes": ["boxe", "jiu jitsu", "muay thai", "saco", "luva", "tenis de corrida", "kimono", "bandagem"],
-        "eletrodomesticos": ["fryer", "geladeira", "tv", "micro-ondas", "aspirador", "alexa", "cafeteira", "maquina"],
-        "moda": ["tenis casual", "camisa", "vestido", "calça", "jeans", "perfume", "relogio", "maquiagem"]
+        "esportes": ["boxe", "jiu jitsu", "muay thai", "saco", "luva", "tenis", "kimono", "bandagem", "corrida", "pancada"],
+        "eletrodomesticos": ["fryer", "geladeira", "micro-ondas", "aspirador", "alexa", "cafeteira", "maquina", "cozinha"],
+        "moda": ["casual", "camisa", "vestido", "calça", "jeans", "perfume", "relogio", "maquiagem", "look", "outlet"]
     }
     
     for categoria, palavras in keywords.items():
         if any(p in t for p in palavras):
             return random.choice(copies.get(categoria, copies["fallback"]))
-    
-    return random.choice(copies["fallback"])
+    return random.choice(copies.get("fallback", ["🔥 Confira esta oferta!"]))
 
 def extrair_detalhes(url, loja_nome):
     ua_list = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
     ]
     headers = {"User-Agent": random.choice(ua_list), "Referer": "https://www.google.com/"}
 
@@ -60,10 +59,14 @@ def extrair_detalhes(url, loja_nome):
         precos = re.findall(r'R\$\s?[\d\.]+\,\d{2}', res.text.replace('\n', ' '))
         preco_final = f"💰 *Preço: {precos[0]}*" if precos else "🔥 *Confira o preço no site!*"
 
+        # TENTATIVA DUPLA DE DOWNLOAD (Mais persistência)
         img_headers = headers.copy()
         img_headers["Referer"] = url 
         img_res = requests.get(img_url, headers=img_headers, timeout=10)
         
+        if img_res.status_code != 200: # Se falhar, tenta sem referer (alguns CDNs preferem assim)
+            img_res = requests.get(img_url, headers={"User-Agent": random.choice(ua_list)}, timeout=10)
+
         if img_res.status_code == 200:
             return nome[:100], BytesIO(img_res.content), preco_final
         return None, None, None
@@ -104,14 +107,14 @@ def main():
         for site in sites:
             if total_enviados >= 10: break
             termo = random.choice(nicho["termos"])
-            print(f"🔎 Analisando: {termo}")
+            print(f"🔎 Buscando: {termo} em {site['nome']}")
             try:
-                r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+                r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
                 soup = BeautifulSoup(r.text, "html.parser")
                 links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/dp/", "/item/", "MLB-", "-P_"])]
                 random.shuffle(links)
                 
-                for l in links[:10]:
+                for l in links[:12]:
                     url_f = tratar_link(l, site['nome'])
                     if url_f in history: continue
                     
@@ -119,7 +122,6 @@ def main():
                     
                     if nome and foto_bytes:
                         url_af = converter_afiliado(url_f, site['nome'], afiliados)
-                        # --- ANALISE INTELIGENTE AQUI ---
                         frase = escolher_frase_inteligente(nome, copies)
                         
                         msg = f"{frase}\n\n📦 *{nome}*\n\n{valor}\n\n🛒 Loja: {site['nome'].upper()}"
@@ -129,12 +131,15 @@ def main():
                             bot.send_photo(chat_id, photo=foto_bytes, caption=msg, reply_markup=btn, parse_mode="Markdown")
                             history.append(url_f)
                             total_enviados += 1
-                            print(f"✅ POSTADO: {nome[:30]}")
-                            time.sleep(12)
+                            print(f"✅ SUCESSO: {nome[:30]}")
+                            time.sleep(15) # Intervalo anti-spam
                             break
-                        except: continue
+                        except Exception as e:
+                            print(f"Erro Telegram: {e}")
+                            continue
             except: continue
-    save_json(HISTORY_FILE, history[-400:])
+    save_json(HISTORY_FILE, history[-500:])
 
 if __name__ == "__main__":
     main()
+    

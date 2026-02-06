@@ -21,32 +21,36 @@ def save_json(file, data):
         json.dump(data, f, indent=2)
 
 def extrair_detalhes(url, loja_nome):
-    # Headers mais fortes para evitar bloqueio
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
     }
     try:
         res = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(res.text, "html.parser")
         
-        # Pega Título
+        # Título
         t = soup.find("h1") or soup.find("meta", property="og:title")
-        nome = (t.get_text().strip() if t and not t.has_attr("content") else t["content"]) if t else "Produto em Oferta"
+        nome = (t.get_text().strip() if t and not t.has_attr("content") else t["content"]) if t else "Oferta"
         nome = re.sub(r'| Mercado Livre| | Amazon| | Netshoes| | Shopee', '', nome, flags=re.IGNORECASE).strip()
 
-        # Tenta pegar Foto do Site (Mais rápido e seguro que print)
+        # Imagem
         img_tag = soup.find("meta", property="og:image") or soup.find("meta", name="twitter:image")
-        img = img_tag["content"] if img_tag else None
-
-        # Tenta pegar Preço
-        # Procura por padrões de R$ 1.234,56
+        img_url = img_tag["content"] if img_tag else None
+        
+        # Preço
         precos = re.findall(r'R\$\s?[\d\.]+\,\d{2}', res.text)
         preco_final = f"💰 *Preço: {precos[0]}*" if precos else "🔥 *Confira o preço no site!*"
             
-        return nome[:100], img, preco_final
-    except Exception as e:
-        print(f"Erro ao abrir link: {e}")
+        if not img_url: return None, None, None
+
+        # --- O PULO DO GATO: Baixar a imagem para evitar erro do Telegram ---
+        img_res = requests.get(img_url, headers=headers, timeout=10)
+        if img_res.status_code == 200:
+            foto_pronta = BytesIO(img_res.content)
+            return nome[:100], foto_pronta, preco_final
+            
+        return None, None, None
+    except:
         return None, None, None
 
 def tratar_link(link, loja_nome):
@@ -92,6 +96,36 @@ def main():
             try:
                 r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
                 soup = BeautifulSoup(r.text, "html.parser")
-                
-                # Pega links de produtos
                 links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/dp/", "/item/", "MLB-", "-P_"])]
+                random.shuffle(links)
+                
+                for l in links[:15]:
+                    url_f = tratar_link(l, site['nome'])
+                    if url_f in history: continue
+                    
+                    nome, foto_bytes, valor = extrair_detalhes(url_f, site['nome'])
+                    
+                    if nome and foto_bytes:
+                        url_af = converter_afiliado(url_f, site['nome'], afiliados)
+                        frase = random.choice(copies.get(nicho['id'], ["🔥 Oferta!"]))
+                        texto = f"{frase}\n\n📦 *{nome}*\n\n{valor}\n\n🛒 Loja: {site['nome'].upper()}"
+                        btn = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 COMPRAR AGORA", url=url_af)]])
+                        
+                        try:
+                            # Enviando o arquivo de imagem (foto_bytes) em vez da URL
+                            bot.send_photo(chat_id, photo=foto_bytes, caption=texto, reply_markup=btn, parse_mode="Markdown")
+                            history.append(url_f)
+                            total_enviados += 1
+                            print(f"✅ SUCESSO: {site['nome']} ({total_enviados}/10)")
+                            time.sleep(5)
+                            break
+                        except Exception as e:
+                            print(f"Erro Telegram: {e}")
+                            continue
+            except:
+                continue
+
+    save_json(HISTORY_FILE, history[-300:])
+
+if __name__ == "__main__":
+    main()

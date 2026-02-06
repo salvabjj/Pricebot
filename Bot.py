@@ -20,6 +20,17 @@ def save_json(file, data):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
+def validar_imagem_print(url_img):
+    """ Tenta garantir que o WordPress já gerou a imagem real """
+    for _ in range(5): # Tenta por até 25 segundos
+        try:
+            res = requests.head(url_img, timeout=10)
+            if "image" in res.headers.get("Content-Type", "").lower():
+                return True
+        except: pass
+        time.sleep(5)
+    return False
+
 def extrair_detalhes(url, loja_nome):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
     try:
@@ -28,10 +39,6 @@ def extrair_detalhes(url, loja_nome):
         
         if usar_print:
             img = f"https://s0.wp.com/mshots/v1/{url}?w=1024&h=768"
-            # PRÉ-CARREGAMENTO: Avisa o WordPress para gerar a imagem
-            try: requests.get(img, timeout=5) 
-            except: pass
-            
             nome = "Oferta Especial"
             preco = "✅ *Preço no print da tela acima!*"
             
@@ -44,14 +51,16 @@ def extrair_detalhes(url, loja_nome):
                     nome = re.sub(r'| Mercado Livre| | Amazon', '', nome, flags=re.IGNORECASE).strip()
             except: pass
             
-            return nome[:100], img, preco
+            # Valida se o print está pronto
+            if validar_imagem_print(img):
+                return nome[:100], img, preco
+            return None, None, None
 
         # FOTO LIMPA PARA SHOPEE, NETSHOES E ZATTINI
         res = requests.get(url, headers=headers, timeout=15)
         soup = BeautifulSoup(res.text, "html.parser")
         title = soup.find("meta", property="og:title") or soup.find("h1")
         nome = title["content"] if title and title.has_attr("content") else (title.get_text().strip() if title else "Produto")
-        nome = re.sub(r'| Netshoes| | Shopee| | Zattini', '', nome, flags=re.IGNORECASE).strip()
         img_tag = soup.find("meta", property="og:image")
         img = img_tag["content"] if img_tag else None
         match = re.search(r'R\$\s?(\d{1,3}(\.\d{3})*,\d{2})', re.sub(r'\d+\s?[xX]\s?de\s?R\$\s?[\d.,]+', '', res.text))
@@ -114,7 +123,6 @@ def main():
             try:
                 r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
                 soup = BeautifulSoup(r.text, "html.parser")
-                # Filtro reforçado: links que contenham padrões de produtos reais
                 links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/dp/", "/item/", "MLB-", "-P_"])]
                 random.shuffle(links)
 
@@ -130,10 +138,6 @@ def main():
                         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 COMPRAR AGORA", url=url_af)]])
 
                         try:
-                            # Espera extra para o print carregar no WordPress
-                            if "mercadolivre" in site['nome'].lower() or "amazon" in site['nome'].lower():
-                                time.sleep(8) 
-                            
                             bot.send_photo(chat_id, photo=img, caption=msg, reply_markup=kb, parse_mode="Markdown")
                             history.append(url_real)
                             lojas_nesta_rodada.append(site['nome'])

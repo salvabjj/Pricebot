@@ -15,26 +15,92 @@ def load_json(file):
     return {}
 
 def extrair_detalhes(url):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Referer": "https://www.google.com/"
-    }
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     try:
-        res = requests.get(url, headers=headers, timeout=20)
-        if res.status_code != 200: return None, None, None
+        res = requests.get(url, headers=headers, timeout=15)
         soup = BeautifulSoup(res.text, "html.parser")
         
-        # 1. Nome
-        title = soup.find("meta", property="og:title") or soup.find("h1")
-        nome = title["content"].split("|")[0].strip() if title and title.has_attr("content") else (title.get_text().strip() if title else "Produto")
+        # Nome - Pega qualquer coisa que pareça um título
+        title_tag = soup.find("meta", property="og:title") or soup.find("h1")
+        nome = title_tag["content"] if title_tag and title_tag.has_attr("content") else (title_tag.get_text().strip() if title_tag else "Produto em Oferta")
+        nome = nome.split('|')[0].strip()
+
+        # Imagem
+        img_tag = soup.find("meta", property="og:image") or soup.find("img")
+        img_url = img_tag["content"] if img_tag and img_tag.has_attr("content") else (img_tag["src"] if img_tag and img_tag.has_attr("src") else None)
         
-        # 2. Imagem (Melhorado para Amazon e Netshoes)
-        img = soup.find("meta", property="og:image") or soup.find("img", {"id": "landingImage"}) or soup.find("img", {"id": "main-photo"})
-        img_url = img["content"] if img and img.has_attr("content") else (img["src"] if img and img.has_attr("src") else None)
+        # Preço - Busca direta no texto por R$
+        match = re.search(r'R\$\s?(\d{1,3}(\.\d{3})*,\d{2})', res.text)
+        preco = f"💰 *Apenas: {match.group(0)}*" if match else "🔥 *VEJA O PREÇO NO SITE!*"
+            
+        return nome, img_url, preco
+    except:
+        return None, None, None
+
+def main():
+    bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
+    chat_id = os.getenv("CHAT_ID")
+    history = load_json(HISTORY_FILE)
+    if not isinstance(history, list): history = []
+    config = load_json(CATEGORIES_FILE)
+    afiliados = load_json(AFFILIATES_FILE)
+    copies = load_json(COPY_FILE)
+
+    enviados = 0
+    meta = 3
+    
+    nichos = config.get("nichos", [])
+    random.shuffle(nichos)
+
+    for nicho in nichos:
+        if enviados >= meta: break
+        sites = config.get("sites", [])
         
-        # 3. PREÇO (O grande desafio)
+        for site in sites:
+            if enviados >= meta: break
+            termo = random.choice(nicho["termos"])
+            print(f"Tentando: {termo} em {site['nome']}")
+            
+            try:
+                r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+                soup = BeautifulSoup(r.text, "html.parser")
+                
+                # Pega qualquer link que pareça produto
+                links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/item/", "/dp/", "produto"])]
+                random.shuffle(links)
+                
+                for link in links:
+                    if not link.startswith("http"):
+                        link = "https://www.netshoes.com.br" + link # Ajuste rápido para caminhos relativos
+                    
+                    if link not in history:
+                        nome, img, preco = extrair_detalhes(link)
+                        if not nome or len(nome) < 5: continue # Só descarta se o nome for quase vazio
+
+                        # Montagem da mensagem
+                        frase = random.choice(copies.get(nicho["id"], ["🔥 OFERTA!"]))
+                        msg = f"{frase}\n\n📦 *{nome[:100]}*\n\n{preco}\n\n🛒 Loja: {site['nome'].upper()}"
+                        
+                        # Botão
+                        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 COMPRAR AGORA", url=link)]])
+
+                        if img: bot.send_photo(chat_id, photo=img, caption=msg, reply_markup=kb, parse_mode="Markdown")
+                        else: bot.send_message(chat_id, text=msg, reply_markup=kb, parse_mode="Markdown")
+                        
+                        history.append(link)
+                        enviados += 1
+                        print(f"✅ Enviado!")
+                        time.sleep(10)
+                        break
+            except Exception as e:
+                print(f"Erro no site {site['nome']}: {e}")
+
+    # Salva histórico
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history[-300:], f)
+
+if __name__ == "__main__":
+    main()        # 3. PREÇO (O grande desafio)
         preco = None
         
         # Tentativa A: Atributos de Meta (Comum em Netshoes/Zattini)

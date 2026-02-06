@@ -4,37 +4,78 @@ import requests
 from bs4 import BeautifulSoup
 from telegram import Bot, ParseMode
 
-# Pega as variaveis do GitHub Secrets
+# Variaveis do GitHub Secrets
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-def gerenciar_json(nome_arquivo, valor_padrao):
-    if os.path.exists(nome_arquivo):
+def abrir_memoria(arquivo, padrao):
+    if os.path.exists(arquivo):
         try:
-            with open(nome_arquivo, 'r', encoding='utf-8') as f:
+            with open(arquivo, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except:
-            return valor_padrao
-    return valor_padrao
+            return padrao
+    return padrao
 
-def buscar_oferta():
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0"}
+def buscar_produto():
     url = "https://www.mercadolivre.com.br/ofertas"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0"}
     
     try:
-        response = requests.get(url, headers=headers, timeout=15)
-        soup = BeautifulSoup(response.text, "html.parser")
+        res = requests.get(url, headers=headers, timeout=15)
+        soup = BeautifulSoup(res.text, "html.parser")
         
-        # Seletores focados no novo layout do ML
+        # Seletores de 2026 para o Mercado Livre
         item = soup.find("p", class_="promotion-item__title")
         preco = soup.find("span", class_="andes-money-amount__fraction")
         link = soup.find("a", class_="promotion-item__link-container")
 
         if item and preco and link:
             return {
-                "id": link['href'],
-                "titulo": item.text.strip(),
-                "valor": preco.text.strip(),
+                "id": link['href'][:50], # Usa o começo do link como ID
+                "nome": item.text.strip(),
+                "preco": preco.text.strip(),
+                "url": link['href']
+            }
+    except Exception as e:
+        print(f"Falha no scraping: {e}")
+    return None
+
+def main():
+    if not TOKEN or not CHAT_ID:
+        print("❌ Erro: Secrets do Telegram não configurados!")
+        return
+
+    bot = Bot(token=TOKEN)
+    historico = abrir_memoria("History.json", [])
+    afiliados = abrir_memoria("Affiliates.json", {})
+
+    produto = buscar_produto()
+
+    if produto and produto['id'] not in historico:
+        # Pega sua tag do Affiliates.json
+        tag = afiliados.get("mercadolivre", "salvabjj-20") 
+        link_final = f"{produto['url']}?tag={tag}"
+        
+        msg = (
+            f"🔥 *OFERTA ENCONTRADA*\n\n"
+            f"📦 {produto['nome']}\n"
+            f"💰 *R$ {produto['preco']}*\n\n"
+            f"🛒 [COMPRAR AGORA]({link_final})"
+        )
+        
+        bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode=ParseMode.MARKDOWN)
+        
+        # Salva para não repetir
+        historico.append(produto['id'])
+        with open("History.json", "w", encoding="utf-8") as f:
+            json.dump(historico[-50:], f) # Guarda as últimas 50
+        print("✅ Postado!")
+    else:
+        print("⏭️ Nenhuma novidade ou produto já postado.")
+
+if __name__ == "__main__":
+    main()                "valor": preco.text.strip(),
                 "url": link['href']
             }
     except Exception as e:

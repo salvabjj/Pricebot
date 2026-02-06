@@ -1,40 +1,51 @@
-name: Pricebot Pro - Captura Visual
+import os
+import asyncio
+from playwright.async_api import async_playwright
+from telegram import Bot
 
-on:
-  schedule:
-    # Roda a cada 2 horas para evitar bloqueio excessivo de IP
-    - cron: '0 */2 * * *'
-  workflow_dispatch: # Permite rodar manualmente pelo botão no GitHub
+async def monitorar_e_printar():
+    # Configurações
+    token = os.getenv("TELEGRAM_TOKEN")
+    chat_id = os.getenv("CHAT_ID")
+    bot = Bot(token=token)
+    
+    # URL alvo (Exemplo: Seção de ofertas ou produto específico)
+    url = "https://www.mercadolivre.com.br/ofertas"
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+    async with async_playwright() as p:
+        # Inicia o navegador (Headless para rodar no GitHub)
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+        )
+        page = await context.new_page()
+        
+        print(f"📡 Acessando: {url}")
+        try:
+            # Vai até a página e espera os preços carregarem
+            await page.goto(url, wait_until="networkidle", timeout=60000)
+            await asyncio.sleep(5) # Tempo extra para garantir o carregamento do JS
+            
+            # Tira o Print Screen
+            screenshot_path = "print_oferta.png"
+            await page.screenshot(path=screenshot_path, full_page=False)
+            
+            # Envia via API do Telegram
+            with open(screenshot_path, 'rb') as photo:
+                await bot.send_photo(
+                    chat_id=chat_id, 
+                    photo=photo, 
+                    caption="📸 **Nova Oferta Monitorada!**\nVerifique os preços atualizados no link abaixo."
+                )
+            print("✅ Captura enviada ao Telegram!")
+            
+        except Exception as e:
+            print(f"❌ Erro na captura: {e}")
+        finally:
+            await browser.close()
 
-    # Permissões necessárias para salvar o histórico (History.json) de volta no repositório
-    permissions:
-      contents: write
-
-    steps:
-      - name: 📥 Checkout do Repositório
-        uses: actions/checkout@v4
-
-      - name: 🐍 Configurar Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: 📦 Instalar Dependências e Navegador
-        run: |
-          python -m pip install --upgrade pip
-          pip install playwright python-telegram-bot requests beautifulsoup4
-          # Instala o motor do Chrome e as bibliotecas de sistema necessárias
-          playwright install chromium
-          playwright install-deps chromium
-
-      - name: 🤖 Executar Bot de Captura (Prynt Sceen)
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
+if __name__ == "__main__":
+    asyncio.run(monitorar_e_printar())          CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python Bot.py
 
       - name: 💾 Salvar Histórico de Ofertas

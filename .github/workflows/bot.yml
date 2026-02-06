@@ -1,13 +1,15 @@
 name: PriceBot_Run
 
 on:
-  workflow_dispatch: # Botão manual
+  workflow_dispatch:
   schedule:
-    - cron: '0 * * * *' # Roda de hora em hora
+    - cron: '0 * * * *'
 
 jobs:
   rodar_bot:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Necessário para o git push funcionar
     steps:
       - name: Copiar arquivos
         uses: actions/checkout@v4
@@ -25,16 +27,14 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python Bot.py          CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python Bot.py
 
-      - name: 💾 Salvar Histórico de Ofertas
+      - name: 💾 Salvar Histórico
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
-          git add History.json
-          # Só faz o commit se houver mudanças para não dar erro
-          git diff --quiet && git diff --staged --quiet || (git commit -m "📊 Histórico atualizado [skip ci]" && git push)    except Exception as e:
+          git add History.json || true
+          git diff --quiet && git diff --staged --quiet || (git commit -m "📊 Histórico atualizado [skip ci]" && git push)          git diff --quiet && git diff --staged --quiet || (git commit -m "📊 Histórico atualizado [skip ci]" && git push)    except Exception as e:
         print(f"Erro no scraping: {e}")
     return None
 

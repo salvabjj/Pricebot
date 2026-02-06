@@ -7,11 +7,29 @@
     {"nome": "zattini", "url": "https://www.zattini.com.br/busca?q="}
   ],
   "nichos": [
-    {"id": "esportes", "termos": ["chuteira de campo", "bola de futebol oficial", "tenis de corrida masculino", "camisa de time 2024"]},
-    {"id": "moda", "termos": ["tenis", "camisa polo masculina", "vestido feminino casual", "calça jeans masculina"]},
-    {"id": "eletrodomesticos", "termos": ["Smarttv", "air fryer", "liquidificador", "micro-ondas"]},
-    {"id": "eletronicos", "termos": ["fone bluetooth", "smartwatch", "caixa de som", "smartphone", "iphone"]},
-    {"id": "choice", "termos": ["shopee choice", "itens mais vendidos", "oferta relampago"]},
-    {"id": "fallback", "termos": ["promocao", "ofertas do dia", "mais vendidos", "queima de estoque"]}
+    {
+      "id": "esportes", 
+      "termos": ["luva de boxe", "kimono jiu jitsu", "tenis de corrida masculino", "bandagem muay thai", "saco de pancada"]
+    },
+    {
+      "id": "fitness", 
+      "termos": ["whey protein", "creatina monohidratada", "pre treino", "suplemento termogenico"]
+    },
+    {
+      "id": "moda", 
+      "termos": ["tenis casual", "camisa polo masculina", "vestido feminino casual", "calça jeans masculina"]
+    },
+    {
+      "id": "eletrodomesticos", 
+      "termos": ["Smarttv", "air fryer", "geladeira", "micro-ondas"]
+    },
+    {
+      "id": "eletronicos", 
+      "termos": ["fone bluetooth", "smartwatch", "caixa de som", "iphone 15", "smartphone"]
+    },
+    {
+      "id": "fallback", 
+      "termos": ["promocao", "ofertas do dia", "mais vendidos", "queima de estoque"]
+    }
   ]
 }

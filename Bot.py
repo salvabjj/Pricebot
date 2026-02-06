@@ -2,7 +2,6 @@ import os, json, random, time, requests, re
 from bs4 import BeautifulSoup
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
-# CONFIGURAÇÃO DE ARQUIVOS
 HISTORY_FILE = "History.json"
 AFFILIATES_FILE = "Affiliates.json"
 CATEGORIES_FILE = "Categories.json"
@@ -18,14 +17,13 @@ def load_json(file):
 def extrair_detalhes(url):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9",
-        "Referer": "https://www.google.com.br/"
+        "Accept-Language": "pt-BR,pt;q=0.9"
     }
     try:
-        res = requests.get(url, headers=headers, timeout=25)
+        res = requests.get(url, headers=headers, timeout=20)
         soup = BeautifulSoup(res.text, "html.parser")
         
-        # 1. Nome
+        # 1. Nome do Produto
         title = soup.find("meta", property="og:title") or soup.find("h1")
         nome = title["content"].split("|")[0].strip() if title and title.has_attr("content") else (title.get_text().strip() if title else "Produto em Oferta")
         
@@ -33,37 +31,28 @@ def extrair_detalhes(url):
         img = soup.find("meta", property="og:image") or soup.find("img", {"id": "landingImage"})
         img_url = img["content"] if img and img.has_attr("content") else (img["src"] if img and img.has_attr("src") else None)
         
-        # 3. Preço (Busca exaustiva para Netshoes/ML)
+        # 3. Preço (Ajustado para Netshoes e ML)
         preco = None
-        # Tentativa 1: JSON estruturado
+        # Tenta JSON estruturado primeiro (Netshoes guarda aqui)
         script_json = soup.find("script", type="application/ld+json")
         if script_json:
             try:
                 data = json.loads(script_json.string)
-                # Lógica para tratar listas de ofertas no JSON
-                offers = data.get("offers", {})
-                if isinstance(offers, list): offers = offers[0]
-                p = offers.get("price")
+                if isinstance(data, list): data = data[0]
+                p = data.get("offers", {}).get("price") if isinstance(data.get("offers"), dict) else data.get("offers", [{}])[0].get("price")
                 if p: preco = f"💰 *Apenas: R$ {str(p).replace('.', ',')}*"
             except: pass
 
-        # Tentativa 2: Seletores específicos (Netshoes 'varejo-price' / ML 'price-tag')
+        # Se falhar, busca por seletores comuns
         if not preco:
-            seletor_preco = soup.find(class_=re.compile(r'price|valor|price-tag|varejo-price', re.I))
-            if seletor_preco:
-                txt = seletor_preco.get_text().strip()
+            # Seletores Netshoes e ML
+            tag_preco = soup.find(class_=re.compile(r'price|valor|price-tag|amount', re.I))
+            if tag_preco:
+                txt = tag_preco.get_text().strip()
                 if "R$" in txt: preco = f"💰 *Apenas: {txt}*"
-
-        # Tentativa 3: Busca Geral
-        if not preco:
-            for tag in soup.find_all(["span", "strong"], text=re.compile(r'R\$')):
-                txt = tag.get_text().strip()
-                if len(txt) < 20:
-                    preco = f"💰 *Apenas: {txt}*"
-                    break
         
         if not preco:
-            preco = "🔥 *VEJA O PREÇO NO SITE!* (Desconto aplicado)"
+            preco = "🔥 *VEJA O PREÇO NO SITE!*"
             
         return nome, img_url, preco
     except: return None, None, None
@@ -93,10 +82,8 @@ def main():
 
     for nicho in nichos:
         if enviados_total >= meta: break
-        
-        # PRIORIZAÇÃO DE LOJAS: Tenta as mais difíceis primeiro
         sites = config.get("sites", [])
-        sites.sort(key=lambda x: x['nome'] not in ['MercadoLivre', 'Amazon']) 
+        random.shuffle(sites)
 
         for site in sites:
             if enviados_total >= meta: break
@@ -105,19 +92,26 @@ def main():
             print(f"Buscando {termo} em {site['nome']}...")
             
             try:
+                # User-Agent para evitar bloqueio na busca
                 r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
                 soup = BeautifulSoup(r.text, "html.parser")
-                links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/item/", "/dp/", "produto.mercadolivre"])]
+                
+                # Captura links (Lógica especial para ML)
+                links = []
+                for a in soup.find_all('a', href=True):
+                    href = a['href']
+                    if any(x in href for x in ["/p/", "/item/", "/dp/", "produto.mercadolivre.com.br"]):
+                        if not href.startswith("http"):
+                            href = "https://www.mercadolivre.com.br" + href if "mercadolivre" in site['nome'].lower() else href
+                        links.append(href)
+                
                 random.shuffle(links)
-            except: continue
+            except: links = []
 
             for link in links:
-                if not link.startswith("http"):
-                    link = f"https://www.{site['nome'].lower()}.com.br" + (link if link.startswith("/") else "/" + link)
-
                 if link not in history:
                     nome, img, texto_venda = extrair_detalhes(link)
-                    if not nome or len(nome) < 10: continue 
+                    if not nome or len(nome) < 15: continue 
 
                     link_af = converter_afiliado(link, site["nome"], afiliados)
                     frase_topo = random.choice(copies.get(nicho["id"], ["🔥 OFERTA!"]))
@@ -131,10 +125,12 @@ def main():
                         
                         history.append(link)
                         enviados_total += 1
-                        print(f"✅ Postado: {site['nome']} ({enviados_total}/3)")
+                        print(f"✅ Sucesso {enviados_total}/3")
                         time.sleep(15)
                         break 
-                    except: continue
+                    except Exception as e:
+                        print(f"Erro ao enviar Telegram: {e}")
+                        continue
 
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history[-500:], f, indent=2)

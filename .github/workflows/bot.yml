@@ -2,8 +2,8 @@ name: Executar Pricebot 2026
 
 on:
   schedule:
-    # Ajustado para rodar a cada 1 hora (ou conforme sua preferência)
-    - cron: '0 * * * *'
+    # Roda a cada 15 minutos (4 vezes por hora)
+    - cron: '*/15 * * * *'
   workflow_dispatch: # Permite rodar manualmente pelo botão no GitHub
 
 jobs:

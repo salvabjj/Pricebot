@@ -20,53 +20,51 @@ def save_json(file, data):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
+def limpar_url(url):
+    # Remove rastreios de busca para não repetir produtos
+    return url.split('?')[0].split('#')[0]
+
 def escolher_frase_inteligente(titulo, copies):
     t = titulo.lower()
     keywords = {
-        "eletronicos": ["iphone", "smartphone", "fone", "bluetooth", "smartwatch", "caixa", "som", "ps5", "nintendo", "monitor", "gamer", "tv", "eletro"],
-        "fitness": ["whey", "creatina", "pre treino", "suplemento", "termogenico", "shaker", "proteina"],
-        "esportes": ["boxe", "jiu jitsu", "muay thai", "saco", "luva", "tenis", "kimono", "bandagem", "corrida", "pancada"],
-        "eletrodomesticos": ["fryer", "geladeira", "micro-ondas", "aspirador", "alexa", "cafeteira", "maquina", "cozinha"],
-        "moda": ["casual", "camisa", "vestido", "calça", "jeans", "perfume", "relogio", "maquiagem", "look", "outlet"]
+        "eletronicos": ["iphone", "smartphone", "fone", "bluetooth", "smartwatch", "caixa", "som", "ps5", "nintendo", "monitor", "gamer", "tv", "notebook"],
+        "fitness": ["whey", "creatina", "pre treino", "suplemento", "termogenico", "shaker", "proteina", "bcaa"],
+        "esportes": ["boxe", "jiu jitsu", "muay thai", "saco", "luva", "tenis", "kimono", "bandagem", "corrida", "bicicleta"],
+        "eletrodomesticos": ["fryer", "geladeira", "micro-ondas", "aspirador", "alexa", "cafeteira", "maquina", "fogão"],
+        "moda": ["casual", "camisa", "vestido", "calça", "jeans", "perfume", "relogio", "maquiagem", "óculos"]
     }
-    
     for categoria, palavras in keywords.items():
         if any(p in t for p in palavras):
             return random.choice(copies.get(categoria, copies["fallback"]))
-    return random.choice(copies.get("fallback", ["🔥 Confira esta oferta!"]))
+    return random.choice(copies.get("fallback", ["🔥 Confira essa oferta:"]))
 
 def extrair_detalhes(url, loja_nome):
     ua_list = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
     ]
     headers = {"User-Agent": random.choice(ua_list), "Referer": "https://www.google.com/"}
-
     try:
         res = requests.get(url, headers=headers, timeout=12)
         if res.status_code != 200: return None, None, None
         soup = BeautifulSoup(res.text, "html.parser")
         
         t = soup.find("h1") or soup.find("meta", property="og:title")
-        nome = (t.get_text().strip() if t and not t.has_attr("content") else t["content"]) if t else "Oferta Especial"
+        nome = (t.get_text().strip() if t and not t.has_attr("content") else t["content"]) if t else "Oferta"
         nome = re.sub(r'| Mercado Livre| | Amazon| | Netshoes| | Shopee| | Zattini', '', nome, flags=re.IGNORECASE).strip()
 
-        img_tag = soup.find("meta", property="og:image") or soup.find("meta", name="twitter:image")
+        img_tag = soup.find("meta", property="og:image:secure_url") or soup.find("meta", property="og:image")
         img_url = img_tag["content"] if img_tag else None
         if not img_url: return None, None, None
 
-        precos = re.findall(r'R\$\s?[\d\.]+\,\d{2}', res.text.replace('\n', ' '))
-        preco_final = f"💰 *Preço: {precos[0]}*" if precos else "🔥 *Confira o preço no site!*"
+        # Captura de preço aprimorada
+        texto = res.text.replace('\n', ' ').replace('\xa0', ' ')
+        precos = re.findall(r'(?:R\$|R\$\s?|Price:)\s?([\d\.]+\,\d{2})', texto)
+        preco_final = f"💰 *Preço: R$ {precos[0]}*" if precos else "🔥 *Confira o valor no site!*"
 
-        # TENTATIVA DUPLA DE DOWNLOAD (Mais persistência)
         img_headers = headers.copy()
         img_headers["Referer"] = url 
         img_res = requests.get(img_url, headers=img_headers, timeout=10)
-        
-        if img_res.status_code != 200: # Se falhar, tenta sem referer (alguns CDNs preferem assim)
-            img_res = requests.get(img_url, headers={"User-Agent": random.choice(ua_list)}, timeout=10)
-
         if img_res.status_code == 200:
             return nome[:100], BytesIO(img_res.content), preco_final
         return None, None, None
@@ -111,11 +109,12 @@ def main():
             try:
                 r = requests.get(site["url"] + termo.replace(" ", "+"), headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
                 soup = BeautifulSoup(r.text, "html.parser")
+                # Filtro de links mais preciso
                 links = [a['href'] for a in soup.find_all('a', href=True) if any(x in a['href'] for x in ["/p/", "/dp/", "/item/", "MLB-", "-P_"])]
                 random.shuffle(links)
                 
-                for l in links[:12]:
-                    url_f = tratar_link(l, site['nome'])
+                for l in links[:15]:
+                    url_f = limpar_url(tratar_link(l, site['nome']))
                     if url_f in history: continue
                     
                     nome, foto_bytes, valor = extrair_detalhes(url_f, site['nome'])
@@ -123,7 +122,6 @@ def main():
                     if nome and foto_bytes:
                         url_af = converter_afiliado(url_f, site['nome'], afiliados)
                         frase = escolher_frase_inteligente(nome, copies)
-                        
                         msg = f"{frase}\n\n📦 *{nome}*\n\n{valor}\n\n🛒 Loja: {site['nome'].upper()}"
                         btn = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 COMPRAR AGORA", url=url_af)]])
                         
@@ -131,15 +129,14 @@ def main():
                             bot.send_photo(chat_id, photo=foto_bytes, caption=msg, reply_markup=btn, parse_mode="Markdown")
                             history.append(url_f)
                             total_enviados += 1
-                            print(f"✅ SUCESSO: {nome[:30]}")
-                            time.sleep(15) # Intervalo anti-spam
+                            print(f"✅ POSTADO: {nome[:30]}")
+                            time.sleep(15) 
                             break
                         except Exception as e:
                             print(f"Erro Telegram: {e}")
                             continue
             except: continue
-    save_json(HISTORY_FILE, history[-500:])
+    save_json(HISTORY_FILE, history[-600:])
 
 if __name__ == "__main__":
     main()
-    

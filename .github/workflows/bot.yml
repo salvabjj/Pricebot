@@ -1,40 +1,49 @@
-import requests
-from bs4 import BeautifulSoup
-from telegram import Bot, ParseMode
-import time
+name: Pricebot Pro - Captura Visual
 
-# Configurações do Telegram
-TOKEN = "SEU_TOKEN_AQUI"
-CHAT_ID = "SEU_CHAT_ID_AQUI"
+on:
+  schedule:
+    # Roda a cada 2 horas para evitar bloqueio excessivo de IP
+    - cron: '0 */2 * * *'
+  workflow_dispatch: # Permite rodar manualmente pelo botão no GitHub
 
-# Headers para simular um navegador real e evitar bloqueios
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8"
-}
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-def buscar_oferta():
-    url = "https://www.mercadolivre.com.br/ofertas"
-    try:
-        response = requests.get(url, headers=HEADERS, timeout=10)
-        if response.status_code != 200:
-            print(f"Erro no site: {response.status_code}")
-            return None
+    # Permissões necessárias para salvar o histórico (History.json) de volta no repositório
+    permissions:
+      contents: write
 
-        soup = BeautifulSoup(response.text, "html.parser")
-        
-        # Seletores resilientes (buscam por classes comuns de oferta)
-        produto = soup.find("p", class_="promotion-item__title")
-        preco = soup.find("span", class_="andes-money-amount__fraction")
-        link = soup.find("a", class_="promotion-item__link-container")
+    steps:
+      - name: 📥 Checkout do Repositório
+        uses: actions/checkout@v4
 
-        if produto and preco:
-            return {
-                "titulo": produto.text.strip(),
-                "valor": preco.text.strip(),
-                "url": link['href'] if link else url
-            }
-    except Exception as e:
+      - name: 🐍 Configurar Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 📦 Instalar Dependências e Navegador
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright python-telegram-bot requests beautifulsoup4
+          # Instala o motor do Chrome e as bibliotecas de sistema necessárias
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: 🤖 Executar Bot de Captura (Prynt Sceen)
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python Bot.py
+
+      - name: 💾 Salvar Histórico de Ofertas
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "action@github.com"
+          git add History.json
+          # Só faz o commit se houver mudanças para não dar erro
+          git diff --quiet && git diff --staged --quiet || (git commit -m "📊 Histórico atualizado [skip ci]" && git push)    except Exception as e:
         print(f"Erro no scraping: {e}")
     return None
 

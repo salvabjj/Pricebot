@@ -3,82 +3,112 @@ from bs4 import BeautifulSoup
 from telegram import Bot
 from io import BytesIO
 
-# --- NICHOS DEFINIDOS ---
-TERMOS_ML = ["quimono jiu jitsu", "whey protein", "creatina", "perfume masculino"]
-# Termos focados em Casa/Choice para Shopee
-TERMOS_SHOPEE = ["organizador casa", "shopee choice", "utensilios cozinha", "decoração sala"]
+# --- CONFIGURAÇÃO DE NICHOS (CASA/CHOICE E PRIORIDADES) ---
+TERMOS_ML = ["quimono jiu jitsu", "whey protein", "creatina", "tenis masculino"]
+TERMOS_SHOPEE = ["organizador casa", "shopee choice", "utilidades domesticas", "luminaria led"]
 
 def get_headers():
     return {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8",
         "Referer": "https://www.google.com/"
     }
 
-def extrair_detalhes_ml(url):
+def load_json(file):
+    if os.path.exists(file):
+        with open(file, "r", encoding="utf-8") as f:
+            try: return json.load(f)
+            except: return []
+    return []
+
+def save_json(file, data):
+    with open(file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+def extrair_dados_basicos(url):
+    """Extrai titulo, imagem e preço de forma resiliente."""
     try:
-        res = requests.get(url, headers=get_headers(), timeout=15)
-        if res.status_code != 200: return None
+        res = requests.get(url, headers=get_headers(), timeout=20)
+        if res.status_code != 200: return None, None, None
+        
         soup = BeautifulSoup(res.text, "html.parser")
         
-        nome = soup.find("h1").get_text().strip() if soup.find("h1") else "Oferta"
-        img = soup.find("meta", property="og:image")["content"]
+        # Título: Busca em H1 ou Meta Tag
+        titulo = soup.find("h1").get_text().strip() if soup.find("h1") else "Oferta Especial"
         
-        # Pega o preço no texto (mais estável que seletor CSS)
+        # Imagem: Busca na tag OpenGraph (mais estável)
+        img_tag = soup.find("meta", property="og:image")
+        img_url = img_tag["content"] if img_tag else None
+        
+        # Preço: Regex para encontrar o padrão R$ ou valores decimais
         precos = re.findall(r'(\d{1,3}(?:\.\d{3})*,\d{2})', res.text)
-        preco = f"R$ {precos[0]}" if precos else "Confira"
+        preco = f"R$ {precos[0]}" if precos else "Confira no site"
         
-        return {"nome": nome[:90], "img": img, "preco": preco, "url": url}
-    except: return None
-
-def buscar_shopee_api(termo):
-    # A Shopee bloqueia o HTML, mas a API de busca às vezes permite o acesso
-    url = f"https://shopee.com.br/api/v4/search/search_items?keyword={termo}&limit=5&newest=0&order=desc&page_type=search&scenario=PAGE_GLOBAL_SEARCH"
-    try:
-        res = requests.get(url, headers=get_headers(), timeout=15)
-        data = res.json()
-        items = data.get('items', [])
-        if not items: return []
-        
-        results = []
-        for i in items:
-            item = i.get('item_basic')
-            if item:
-                # Monta link e imagem manualmente
-                link = f"https://shopee.com.br/product/{item['shopid']}/{item['itemid']}"
-                img = f"https://down-br.img.sgrid.id/file/{item['image']}"
-                preco = f"R$ {item['price']/100000:.2f}".replace('.', ',')
-                results.append({"nome": item['name'], "img": img, "preco": preco, "url": link})
-        return results
-    except: return []
+        if img_url:
+            img_res = requests.get(img_url, timeout=15)
+            return titulo[:90], BytesIO(img_res.content), preco
+    except:
+        pass
+    return None, None, None
 
 def main():
     bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
     chat_id = os.getenv("CHAT_ID")
-    history = [] # Carregue seu History.json aqui
-    
-    # 1. TENTATIVA MERCADO LIVRE
-    print("🔎 Buscando no Mercado Livre...")
-    termo = random.choice(TERMOS_ML)
-    res_ml = requests.get(f"https://lista.mercadolivre.com.br/{termo.replace(' ', '-')}", headers=get_headers())
-    links_ml = re.findall(r'https://produto\.mercadolivre\.com\.br/MLB-\d+-[^"\'\s]+', res_ml.text)
-    
-    for link in list(set(links_ml))[:3]:
-        if link in history: continue
-        prod = extrair_detalhes_ml(link)
-        if prod:
-            bot.send_photo(chat_id, photo=prod['img'], caption=f"💎 *MERCADO LIVRE*\n\n📦 {prod['nome']}\n💰 *{prod['preco']}*\n\n🛒 [COMPRAR]({prod['url']})", parse_mode="Markdown")
-            print(f"✅ Postado ML: {prod['nome']}")
-            return # Para após postar uma para evitar spam
+    history = load_json("History.json")
+    postados = 0
 
-    # 2. TENTATIVA SHOPEE (API)
-    print("🔎 Buscando na Shopee...")
-    produtos_sh = buscar_shopee_api(random.choice(TERMOS_SHOPEE))
-    for prod in produtos_sh:
-        if prod['url'] in history: continue
-        bot.send_photo(chat_id, photo=prod['img'], caption=f"🏠 *SHOPEE CASA*\n\n📦 {prod['nome']}\n💰 *{prod['preco']}*\n\n🛒 [COMPRAR]({prod['url']})", parse_mode="Markdown")
-        print(f"✅ Postado Shopee: {prod['nome']}")
-        break
+    # --- ETAPA 1: MERCADO LIVRE (Busca Direta por Regex) ---
+    print("🚀 TENTANDO MERCADO LIVRE...")
+    termo_ml = random.choice(TERMOS_ML)
+    url_ml = f"https://lista.mercadolivre.com.br/{termo_ml.replace(' ', '-')}"
+    try:
+        r = requests.get(url_ml, headers=get_headers(), timeout=15)
+        # Regex: Procura qualquer link que siga o padrão de produto do ML (MLB-xxxx)
+        links = list(set(re.findall(r'https://produto\.mercadolivre\.com\.br/MLB-\d+-[^"\'\s]+', r.text)))
+        
+        for link in links:
+            link_limpo = link.split('#')[0]
+            if link_limpo in history: continue
+            
+            nome, foto, preco = extrair_dados_basicos(link_limpo)
+            if nome and foto:
+                bot.send_photo(chat_id, photo=foto, 
+                             caption=f"💎 *MERCADO LIVRE*\n\n📦 {nome}\n💰 *{preco}*\n\n🛒 [COMPRAR AGORA]({link_limpo})", 
+                             parse_mode="Markdown")
+                history.append(link_limpo)
+                postados += 1
+                print(f"✅ ML Postado: {nome}")
+                break # Posta apenas um por execução para evitar ban
+    except Exception as e:
+        print(f"❌ Erro ML: {e}")
+
+    # --- ETAPA 2: SHOPEE (Busca via Google para burlar bloqueio) ---
+    if postados == 0: # Se não postou ML, tenta Shopee
+        print("🏠 TENTANDO SHOPEE (CASA/CHOICE)...")
+        termo_sh = random.choice(TERMOS_SHOPEE)
+        # Truque: O Google raramente bloqueia o GitHub Actions. Usamos ele como ponte.
+        url_ponte = f"https://www.google.com/search?q=site:shopee.com.br/product+{termo_sh.replace(' ', '+')}"
+        try:
+            r = requests.get(url_ponte, headers=get_headers(), timeout=15)
+            links_sh = list(set(re.findall(r'https://shopee\.com\.br/[^&?\"\'\s]+', r.text)))
+            
+            for link in links_sh:
+                if "universal-link" in link or link in history: continue
+                nome, foto, preco = extrair_dados_basicos(link)
+                if nome and foto:
+                    bot.send_photo(chat_id, photo=foto, 
+                                 caption=f"🏠 *SHOPEE CASA*\n\n📦 {nome}\n💰 *{preco}*\n\n🛒 [VER NA SHOPEE]({link})", 
+                                 parse_mode="Markdown")
+                    history.append(link)
+                    postados += 1
+                    print(f"✅ Shopee Postado: {nome}")
+                    break
+        except Exception as e:
+            print(f"❌ Erro Shopee: {e}")
+
+    save_json("History.json", history[-300:])
+    print(f"📊 Fim: {postados} ofertas enviadas.")
 
 if __name__ == "__main__":
     main()
+    

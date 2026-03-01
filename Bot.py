@@ -15,8 +15,6 @@ Arquivo de fluxo de trabalho inválido
 You have an error in your yaml syntax on line 5
 
     todas = []
-    todas += mercadolivre.capturar()
-    todas += amazon.capturar()
     todas += netshoes.capturar()
     todas += zattini.capturar()
 

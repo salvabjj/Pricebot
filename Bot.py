@@ -1,30 +1,28 @@
+import os
 import requests
-from bs4 import BeautifulSoup
+from lojas import netshoes, zattini
 
-def limpar_preco(texto):
-    return texto.replace("R$", "").replace(".", "").replace(",", ".").strip()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-def capturar():
-    produtos = []
-    url = "https://www.netshoes.com.br/ofertas"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json"
+}
 
-    cards = soup.select(".product-card")[:20]
+def salvar_produto(produto):
+    url = f"{SUPABASE_URL}/rest/v1/products"
+    response = requests.post(url, headers=HEADERS, json=produto)
+    print(response.status_code, response.text)
 
-    for card in cards:
-        try:
-            titulo = card.select_one(".product-name").get_text(strip=True)
-            preco = card.select_one(".product-price").get_text(strip=True)
-            link = card.select_one("a")["href"]
+def executar():
+    todas = []
+    todas += netshoes.capturar()
+    todas += zattini.capturar()
 
-            produtos.append({
-                "titulo": titulo,
-                "preco": float(limpar_preco(preco)),
-                "loja": "Netshoes",
-                "link": link
-            })
-        except:
-            continue
+    for produto in todas:
+        salvar_produto(produto)
 
-    return produtos
+if __name__ == "__main__":
+    executar()

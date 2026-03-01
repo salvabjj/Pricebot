@@ -26,3 +26,14 @@ def run():
 
 if __name__ == "__main__":
     run()
+
+def run():
+    all_products = []
+    all_products += netshoes.capture()
+    all_products += zattini.capture()
+
+    print("TOTAL CAPTURED:", len(all_products))
+
+    for product in all_products:
+        print("SENDING:", product["title"])
+        save_product(product)

@@ -1,38 +1,40 @@
-name: PriceBot_Execution
+from stores import amazon, mercadolivre, netshoes, zattini
+from utils.telegram import enviar_oferta, enviar_relatorio
+from utils.history import ja_postado, adicionar_historico
 
-on:
-  schedule:
-    - cron: '0 * * * *' # Roda automaticamente toda hora
-  workflow_dispatch: # Permite que você clique no botão "Run workflow" manualmente
+def executar():
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # Dá permissão para o bot salvar o History.json no seu GitHub
-    
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
+    todas = []
+    todas += mercadolivre.capturar()
+    todas += amazon.capturar()
+    todas += netshoes.capturar()
+    todas += zattini.capturar()
 
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+    total = 0
+    por_loja = {}
 
-      - name: 📦 Instalar Dependencias
-        run: |
-          pip install requests beautifulsoup4 python-telegram-bot==13.15
+    for produto in todas:
+        if not ja_postado(produto["link"]):
 
-      - name: 🤖 Executar Bot
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python Bot.py
+            mensagem = f"""
+🔥 {produto['titulo']}
+💰 R$ {produto['preco']}
+🏬 {produto['loja']}
+🔗 {produto['link']}
+"""
 
-      - name: 💾 Sincronizar Memorias
-        run: |
-          git config --global user.name "GitHub Action Bot"
-          git config --global user.email "action@github.com"
-          git add History.json Affiliates.json LastStore.json product_cache.json || true
-          git diff --quiet && git diff --staged --quiet || (git commit -m "bot: atualizando memorias [skip ci]" && git push)
+            enviar_oferta(mensagem)
+            adicionar_historico(produto["link"])
+
+            total += 1
+            loja = produto["loja"]
+            por_loja[loja] = por_loja.get(loja, 0) + 1
+
+    relatorio = f"📊 RELATÓRIO\n\nTotal: {total}\n\n"
+    for loja, qtd in por_loja.items():
+        relatorio += f"{loja}: {qtd}\n"
+
+    enviar_relatorio(relatorio)
+
+if __name__ == "__main__":
+    executar()

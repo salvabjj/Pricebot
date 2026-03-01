@@ -1,7 +1,16 @@
+import os
+import requests
 from stores import netshoes, zattini
-from utils.telegram import enviar_oferta, enviar_relatorio
-from utils.history import ja_postado, adicionar_historico
 
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=minimal"
+}
 
 LOJAS = [
     netshoes.capturar,
@@ -9,40 +18,106 @@ LOJAS = [
 ]
 
 
-def executar():
-    todas = []
+def classificar_categoria(titulo):
+    titulo = titulo.lower()
 
+    if any(x in titulo for x in ["tenis", "tênis"]):
+        return "tenis"
+    if "chuteira" in titulo:
+        return "chuteira"
+    if any(x in titulo for x in ["bola", "raquete", "rede", "uniforme"]):
+        return "esporte"
+    if any(x in titulo for x in ["tv", "smart", "4k"]):
+        return "tv"
+    if any(x in titulo for x in ["iphone", "celular", "samsung"]):
+        return "celular"
+
+    return "geral"
+
+
+def calcular_score(produto):
+    desconto = float(produto.get("desconto") or 0)
+    preco = float(produto.get("preco") or 1)
+    loja = produto.get("loja") or ""
+    categoria = classificar_categoria(produto["titulo"])
+
+    score = 0
+    score += desconto * 3
+    score += (1000 / preco)
+
+    if categoria in ["tenis", "chuteira", "esporte"]:
+        score += 50
+
+    if loja in ["netshoes", "zattini"]:
+        score += 20
+
+    return score
+
+
+def salvar_produto(produto):
+    link = produto["link"]
+    preco_atual = float(produto["preco"])
+    preco_antigo = produto.get("preco_antigo")
+    categoria = classificar_categoria(produto["titulo"])
+
+    res = requests.get(
+        f"{SUPABASE_URL}/rest/v1/products?link=eq.{link}",
+        headers=HEADERS
+    )
+
+    data = res.json()
+
+    if data:
+        existente = data[0]
+        menor_preco = existente.get("menor_preco") or preco_atual
+        queda = False
+
+        if preco_atual < float(menor_preco):
+            menor_preco = preco_atual
+            queda = True
+
+        update_data = {
+            "preco": preco_atual,
+            "preco_antigo": preco_antigo,
+            "menor_preco": menor_preco,
+            "queda_recente": queda,
+            "categoria": categoria,
+            "score": calcular_score(produto)
+        }
+
+        requests.patch(
+            f"{SUPABASE_URL}/rest/v1/products?link=eq.{link}",
+            headers=HEADERS,
+            json=update_data
+        )
+
+    else:
+        insert_data = {
+            "loja": produto["loja"],
+            "titulo": produto["titulo"],
+            "preco": preco_atual,
+            "preco_antigo": preco_antigo,
+            "menor_preco": preco_atual,
+            "link": link,
+            "categoria": categoria,
+            "score": calcular_score(produto)
+        }
+
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/products",
+            headers=HEADERS,
+            json=insert_data
+        )
+
+
+def executar():
     for capturar in LOJAS:
         try:
             produtos = capturar()
-            todas += produtos
+            for produto in produtos:
+                salvar_produto(produto)
         except Exception as e:
-            print(f"Erro na loja: {e}")
-
-    total = 0
-    por_loja = {}
-
-    for produto in todas:
-        if not ja_postado(produto["link"]):
-
-            mensagem = f"""🔥 {produto['titulo']}
-💰 R$ {produto['preco']}
-🏬 {produto['loja']}
-🔗 {produto['link']}"""
-
-            enviar_oferta(mensagem)
-            adicionar_historico(produto["link"])
-
-            total += 1
-            loja = produto["loja"]
-            por_loja[loja] = por_loja.get(loja, 0) + 1
-
-    relatorio = f"📊 RELATÓRIO\n\nTotal: {total}\n\n"
-
-    for loja, qtd in por_loja.items():
-        relatorio += f"{loja}: {qtd}\n"
-
-    enviar_relatorio(relatorio)
+            print("Erro:", e)
 
 
 if __name__ == "__main__":

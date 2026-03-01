@@ -1,40 +1,29 @@
-from stores import amazon, mercadolivre, netshoes, zattini
-from utils.telegram import enviar_oferta, enviar_relatorio
-from utils.history import ja_postado, adicionar_historico
+name: Executar Pricebot 2026
 
-def executar():
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
-    todas = []
-    todas += mercadolivre.capturar()
-    todas += amazon.capturar()
-    todas += netshoes.capturar()
-    todas += zattini.capturar()
+jobs:
+  executar-bot:
+    runs-on: ubuntu-latest
 
-    total = 0
-    por_loja = {}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    for produto in todas:
-        if not ja_postado(produto["link"]):
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-            mensagem = f"""
-🔥 {produto['titulo']}
-💰 R$ {produto['preco']}
-🏬 {produto['loja']}
-🔗 {produto['link']}
-"""
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
 
-            enviar_oferta(mensagem)
-            adicionar_historico(produto["link"])
-
-            total += 1
-            loja = produto["loja"]
-            por_loja[loja] = por_loja.get(loja, 0) + 1
-
-    relatorio = f"📊 RELATÓRIO\n\nTotal: {total}\n\n"
-    for loja, qtd in por_loja.items():
-        relatorio += f"{loja}: {qtd}\n"
-
-    enviar_relatorio(relatorio)
-
-if __name__ == "__main__":
-    executar()
+      - name: Executar Bot
+        run: python Bot.py
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID_POST: ${{ secrets.CHAT_ID_POST }}
+          CHAT_ID_REPORT: ${{ secrets.CHAT_ID_REPORT }}

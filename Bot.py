@@ -14,27 +14,27 @@ HEADERS = {
 def save_product(product):
     url = f"{SUPABASE_URL}/rest/v1/products"
     response = requests.post(url, headers=HEADERS, json=product)
-    print("STATUS:", response.status_code)
-    print("RESPONSE:", response.text)
+    print("INSERT STATUS:", response.status_code)
+    print("INSERT RESPONSE:", response.text)
 
 def run():
+    print("BOT STARTED")
+
     all_products = []
-    all_products += netshoes.capture()
-    all_products += zattini.capture()
+    net = netshoes.capture()
+    zat = zattini.capture()
 
-    for product in all_products:
-        save_product(product)
+    print("NETSHOES FOUND:", len(net))
+    print("ZATTINI FOUND:", len(zat))
 
-if __name__ == "__main__":
-    run()
+    all_products += net
+    all_products += zat
 
-def run():
-    all_products = []
-    all_products += netshoes.capture()
-    all_products += zattini.capture()
-
-    print("TOTAL CAPTURED:", len(all_products))
+    print("TOTAL PRODUCTS:", len(all_products))
 
     for product in all_products:
         print("SENDING:", product["title"])
         save_product(product)
+
+if __name__ == "__main__":
+    run()

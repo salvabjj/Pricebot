@@ -1,11 +1,8 @@
-name: Executar Pricebot 5.1
+name: Executar Pricebot
 
 on:
   schedule:
-    # 09h até 21h Brasil (12h até 00h UTC)
-    - cron: '0 12-23 * * *'
-    # 22h Brasil (01h UTC)
-    - cron: '0 1 * * *'
+    - cron: "*/30 9-22 * * *"
   workflow_dispatch:
 
 jobs:
@@ -19,12 +16,12 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install Dependencies
+        run: pip install -r requisitos.txt
 
-      - name: Executar Bot
+      - name: Run Bot
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}

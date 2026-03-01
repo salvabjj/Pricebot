@@ -14,7 +14,8 @@ HEADERS = {
 def save_product(product):
     url = f"{SUPABASE_URL}/rest/v1/products"
     response = requests.post(url, headers=HEADERS, json=product)
-    print(response.status_code, response.text)
+    print("STATUS:", response.status_code)
+    print("RESPONSE:", response.text)
 
 def run():
     all_products = []

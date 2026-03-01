@@ -1,25 +1,30 @@
 import requests
 from bs4 import BeautifulSoup
-from utils.parser import limpar_preco
+
+def limpar_preco(texto):
+    return texto.replace("R$", "").replace(".", "").replace(",", ".").strip()
 
 def capturar():
-    url = "https://www.zattini.com.br/tenis"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    r = requests.get(url, headers=headers)
-    soup = BeautifulSoup(r.text, "html.parser")
-
     produtos = []
+    url = "https://www.zattini.com.br/ofertas"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, "html.parser")
 
-    for item in soup.select(".product-card")[:40]:
-        link = item.select_one("a")
-        preco_atual = item.select_one(".price-por")
+    cards = soup.select(".product-card")[:20]
 
-        if link and preco_atual:
+    for card in cards:
+        try:
+            titulo = card.select_one(".product-name").get_text(strip=True)
+            preco = card.select_one(".product-price").get_text(strip=True)
+            link = card.select_one("a")["href"]
+
             produtos.append({
+                "titulo": titulo,
+                "preco": float(limpar_preco(preco)),
                 "loja": "Zattini",
-                "titulo": link.get_text(strip=True),
-                "link": link["href"],
-                "preco": limpar_preco(preco_atual.get_text())
+                "link": link
             })
+        except:
+            continue
 
     return produtos

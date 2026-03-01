@@ -1,4 +1,4 @@
-name: Executar Pricebot
+name: Run Pricebot
 
 on:
   schedule:
@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  executar-bot:
+  run-bot:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -18,10 +18,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Bot
+      - name: Run bot
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}

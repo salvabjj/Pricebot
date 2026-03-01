@@ -1,6 +1,6 @@
 import os
 import requests
-from lojas import netshoes, zattini
+from stores import netshoes, zattini
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -11,18 +11,18 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-def salvar_produto(produto):
+def save_product(product):
     url = f"{SUPABASE_URL}/rest/v1/products"
-    response = requests.post(url, headers=HEADERS, json=produto)
+    response = requests.post(url, headers=HEADERS, json=product)
     print(response.status_code, response.text)
 
-def executar():
-    todas = []
-    todas += netshoes.capturar()
-    todas += zattini.capturar()
+def run():
+    all_products = []
+    all_products += netshoes.capture()
+    all_products += zattini.capture()
 
-    for produto in todas:
-        salvar_produto(produto)
+    for product in all_products:
+        save_product(product)
 
 if __name__ == "__main__":
-    executar()
+    run()

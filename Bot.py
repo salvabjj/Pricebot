@@ -1,41 +1,40 @@
-import os
-import json
-import requests
-from bs4 import BeautifulSoup
-from telegram import Bot, ParseMode
+from stores import amazon, mercadolivre, netshoes, zattini
+from utils.telegram import enviar_oferta, enviar_relatorio
+from utils.history import ja_postado, adicionar_historico
 
-# Variáveis do GitHub Secrets
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+def executar():
 
-def main():
-    if not TOKEN or not CHAT_ID:
-        print("ERRO: Configure as Secrets no GitHub!")
-        return
+    todas = []
+    todas += mercadolivre.capturar()
+    todas += amazon.capturar()
+    todas += netshoes.capturar()
+    todas += zattini.capturar()
 
-    bot = Bot(token=TOKEN)
-    
-    # Busca a oferta (exemplo simplificado)
-    url = "https://www.mercadolivre.com.br/ofertas"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0"}
-    
-    try:
-        res = requests.get(url, headers=headers, timeout=15)
-        soup = BeautifulSoup(res.text, "html.parser")
-        
-        # Pega o primeiro item da lista de ofertas
-        item = soup.find("p", class_="promotion-item__title")
-        preco = soup.find("span", class_="andes-money-amount__fraction")
-        link = soup.find("a", class_="promotion-item__link-container")
+    total = 0
+    por_loja = {}
 
-        if item and preco:
-            msg = f"🔥 *OFERTA:* {item.text}\n💰 *PREÇO:* R$ {preco.text}\n🛒 [COMPRAR]({link['href']})"
-            bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode=ParseMode.MARKDOWN)
-            print("✅ Postado!")
-        else:
-            print("0 ofertas encontradas.")
-    except Exception as e:
-        print(f"Erro: {e}")
+    for produto in todas:
+        if not ja_postado(produto["link"]):
+
+            mensagem = f"""
+🔥 {produto['titulo']}
+💰 R$ {produto['preco']}
+🏬 {produto['loja']}
+🔗 {produto['link']}
+"""
+
+            enviar_oferta(mensagem)
+            adicionar_historico(produto["link"])
+
+            total += 1
+            loja = produto["loja"]
+            por_loja[loja] = por_loja.get(loja, 0) + 1
+
+    relatorio = f"📊 RELATÓRIO\n\nTotal: {total}\n\n"
+    for loja, qtd in por_loja.items():
+        relatorio += f"{loja}: {qtd}\n"
+
+    enviar_relatorio(relatorio)
 
 if __name__ == "__main__":
-    main()
+    executar()
